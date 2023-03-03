@@ -11,6 +11,7 @@
 		FB8950E829B1383700FF545A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB8950E729B1383700FF545A /* ContentView.swift */; };
 		FB8950EA29B1383800FF545A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FB8950E929B1383800FF545A /* Assets.xcassets */; };
 		FB8950ED29B1383800FF545A /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FB8950EC29B1383800FF545A /* Preview Assets.xcassets */; };
+		FB8950F429B13BD200FF545A /* CBUUIDS.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB8950F329B13BD200FF545A /* CBUUIDS.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,6 +20,7 @@
 		FB8950E729B1383700FF545A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		FB8950E929B1383800FF545A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FB8950EC29B1383800FF545A /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		FB8950F329B13BD200FF545A /* CBUUIDS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CBUUIDS.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -53,6 +55,7 @@
 			children = (
 				FB8950E529B1383700FF545A /* Juxta2App.swift */,
 				FB8950E729B1383700FF545A /* ContentView.swift */,
+				FB8950F329B13BD200FF545A /* CBUUIDS.swift */,
 				FB8950E929B1383800FF545A /* Assets.xcassets */,
 				FB8950EB29B1383800FF545A /* Preview Content */,
 			);
@@ -139,6 +142,7 @@
 			files = (
 				FB8950E829B1383700FF545A /* ContentView.swift in Sources */,
 				FB8950E629B1383700FF545A /* Juxta2App.swift in Sources */,
+				FB8950F429B13BD200FF545A /* CBUUIDS.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -270,6 +274,8 @@
 				DEVELOPMENT_TEAM = WBU4CZ6AZJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Juxta needs BLE";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Can Juxta use BLE peripherals?";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -299,6 +305,8 @@
 				DEVELOPMENT_TEAM = WBU4CZ6AZJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Juxta needs BLE";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Can Juxta use BLE peripherals?";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
