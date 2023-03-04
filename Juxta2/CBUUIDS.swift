@@ -9,5 +9,9 @@ import Foundation
 import CoreBluetooth
 
 struct CBUUIDs{
-    public static let JuxtaService = CBUUID.init(string: "A2A2")
+    public static let JuxtaService = CBUUID.init(string: "FFF0")
+    public static let JuxtaLogCountChar = CBUUID.init(string: "FFF1")
+    public static let JuxtaLocalTimeChar = CBUUID.init(string: "FFF2")
+    public static let JuxtaAdvertiseModeChar = CBUUID.init(string: "FFF3")
+    public static let JuxtaDataChar = CBUUID.init(string: "FFF4")
 }
