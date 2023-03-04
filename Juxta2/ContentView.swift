@@ -222,7 +222,7 @@ struct NonEditableTextEditor: UIViewRepresentable {
     
     func makeUIView(context: Context) -> UITextView {
         let textView = UITextView()
-        textView.font = UIFont.monospacedDigitSystemFont(ofSize: UIFont.systemFontSize, weight: .light)
+        textView.font = UIFont.monospacedDigitSystemFont(ofSize: UIFont.smallSystemFontSize, weight: .light)
         textView.isEditable = false
         textView.isSelectable = false
         textView.text = text

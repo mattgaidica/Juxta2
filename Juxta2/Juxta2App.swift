@@ -51,6 +51,10 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var dataLineLength = 17 // see JUXTA_LOG_SIZE
     private var hexTimeData: [UInt8] = [0,0,0,0]
     private var dataCount: UInt32 = 0
+    // data vars
+    private var data_logCount: UInt32 = 0
+    private var data_scanAddr: [UInt8] = [0,0,0,0,0,0]
+    private var data_localTime: UInt32 = 0
     
     override init() {
         super.init()
@@ -162,17 +166,61 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             timerData?.invalidate()
             timerData = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { timer in
                 print("Download done")
-                self.dataCount = 0
                 self.exitData() // reset log count on Juxta, no notify back
-            }
-            if dataCount == 0 {
-                textbox = String(data)
-            } else {
-                textbox = String(data) + "," + textbox
             }
             initData() // ask for more
             dataCount += 1
             print(dataCount)
+
+            let n = dataCount % 17
+            switch n {
+            case 1: // header
+                break;
+            case 2: // header
+                break;
+            case 3: // log count
+                data_logCount = data_logCount | UInt32(data) << 0
+            case 4: // log count
+                data_logCount = data_logCount | UInt32(data) << 8
+            case 5: // log count
+                data_logCount = data_logCount | UInt32(data) << 16
+            case 6: // log count
+                data_logCount = data_logCount | UInt32(data) << 24
+                nprint(String(format: "%05d,", data_logCount))
+            case 7:
+                data_scanAddr[5] = data
+            case 8:
+                data_scanAddr[4] = data
+            case 9:
+                data_scanAddr[3] = data
+            case 10:
+                data_scanAddr[2] = data
+            case 11:
+                data_scanAddr[1] = data
+            case 12:
+                data_scanAddr[0] = data
+                nprint(data_scanAddr.map { String(format: "%X", $0) }.joined(separator: ":") + ",");
+            case 13:
+                var RSSIInt8: Int8 = 0
+                withUnsafePointer(to: &data) { ptr in
+                    ptr.withMemoryRebound(to: Int8.self, capacity: 1) { intPtr in
+                        RSSIInt8 = intPtr.pointee
+                    }
+                }
+                nprint(String(format: "%i,", RSSIInt8))
+            case 14:
+                data_localTime = data_localTime | UInt32(data) << 0
+            case 15:
+                data_localTime = data_localTime | UInt32(data) << 8
+            case 16:
+                data_localTime = data_localTime | UInt32(data) << 16
+            case 0: // ie, 17
+                data_localTime = data_localTime | UInt32(data) << 24
+                nprint(String(format: "0x%llX\n", data_localTime))
+                resetDataVars()
+            default:
+                break;
+            }
         }
         if characteristic == logCountChar {
             let data:Data = characteristic.value!
@@ -303,6 +351,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         print(text)
         textbox = text + "\n" + textbox
     }
+    func nprint(_ text: String) {
+        textbox = textbox + text
+    }
     
     func copyTextbox() {
         UIPasteboard.general.string = textbox
@@ -314,6 +365,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     func dumpLogData() {
         dataCount = 0
+        textbox = ""
+        resetDataVars()
         initData()
     }
     
@@ -331,6 +384,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             peripheral.writeValue(data, for: characteristic, type: .withResponse)
             peripheral.writeValue(data, for: characteristic, type: .withResponse)
             peripheral.writeValue(data, for: characteristic, type: .withResponse)
+            dataCount = 0
         }
+    }
+    func resetDataVars() {
+        data_logCount = 0
+        data_scanAddr = [0,0,0,0,0,0]
+        data_localTime = 0
     }
 }
