@@ -265,8 +265,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     func startScan() {
         print("Starting scan")
         isScanning = true
+        resetDevices()
         myCentral.scanForPeripherals(withServices: [CBUUIDs.JuxtaService], options: nil)
-        self.timerScan = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { _ in
+        self.timerScan = Timer.scheduledTimer(withTimeInterval: 20, repeats: false) { _ in
             self.stopScan()
         }
      }
@@ -387,6 +388,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             dataCount = 0
         }
     }
+    
     func resetDataVars() {
         data_logCount = 0
         data_scanAddr = [0,0,0,0,0,0]

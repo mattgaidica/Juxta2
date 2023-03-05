@@ -86,6 +86,8 @@
 			dependencies = (
 			);
 			name = Juxta2;
+			packageProductDependencies = (
+			);
 			productName = Juxta2;
 			productReference = FB8950E229B1383700FF545A /* Juxta2.app */;
 			productType = "com.apple.product-type.application";
@@ -114,6 +116,8 @@
 				Base,
 			);
 			mainGroup = FB8950D929B1383700FF545A;
+			packageReferences = (
+			);
 			productRefGroup = FB8950E329B1383700FF545A /* Products */;
 			projectDirPath = "";
 			projectRoot = "";

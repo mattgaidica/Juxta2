@@ -47,6 +47,7 @@ struct BlueButton: ButtonStyle {
 struct ContentView: View {
     @ObservedObject var bleManager = BLEManager()
     @State var doScan = false
+    
     let options: [Option] = [
         Option(value: 0, label: "Axy Logger"),
         Option(value: 1, label: "Shelf Mode"),
@@ -152,6 +153,11 @@ struct ContentView: View {
                             bleManager.dumpLogData()
                         }) {
                             Text("Dump Log Data")
+                        }.buttonStyle(BlueButton())
+                        Button(action: {
+                            bleManager.test()
+                        }) {
+                            Text("Test")
                         }.buttonStyle(BlueButton())
                     }
                     
