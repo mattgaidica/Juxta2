@@ -21,7 +21,7 @@ struct Juxta2App: App {
 class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     
     var myCentral: CBCentralManager!
-    @Published var isConnected: Bool = true
+    @Published var isConnected: Bool = false
     @Published var isSwitchedOn = false
     @Published var devices: [CBPeripheral] = []
     @Published var rssiValues: [Int: NSNumber] = [:]
@@ -63,6 +63,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         self.timer1Hz = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
             self.currentTime = self.getDateTimeStr()
             self.hexTime = self.getHexTimeStr()
+            if self.isScanning {
+                self.myCentral.scanForPeripherals(withServices: [CBUUIDs.JuxtaService], options: nil)
+            }
         }
     }
     
@@ -266,7 +269,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         print("Starting scan")
         isScanning = true
         resetDevices()
-        myCentral.scanForPeripherals(withServices: [CBUUIDs.JuxtaService], options: nil)
         self.timerScan = Timer.scheduledTimer(withTimeInterval: 20, repeats: false) { _ in
             self.stopScan()
         }
@@ -393,5 +395,19 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         data_logCount = 0
         data_scanAddr = [0,0,0,0,0,0]
         data_localTime = 0
+    }
+    
+    func getRSSIString(_ rssi: NSNumber) -> String {
+        if rssi.intValue > -50 {
+            return "|||||"
+        } else if rssi.intValue > -60 {
+            return "|||| "
+        } else if rssi.intValue > -70 {
+            return "|||  "
+        } else if rssi.intValue > -80 {
+            return "||   "
+        } else {
+            return "|    "
+        }
     }
 }

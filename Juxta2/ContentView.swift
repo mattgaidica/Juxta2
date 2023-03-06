@@ -154,11 +154,6 @@ struct ContentView: View {
                         }) {
                             Text("Dump Log Data")
                         }.buttonStyle(BlueButton())
-                        Button(action: {
-                            bleManager.test()
-                        }) {
-                            Text("Test")
-                        }.buttonStyle(BlueButton())
                     }
                     
                     HStack {
@@ -198,7 +193,13 @@ struct ContentView: View {
                 }
                 
                 NavigationView {
-                    List(bleManager.devices, id: \.self) { peripheral in
+                    List(bleManager.devices.sorted(by: { (peripheral1, peripheral2) -> Bool in
+                        guard let rssi1 = bleManager.rssiValues[peripheral1.hash], let rssi2 = bleManager.rssiValues[peripheral2.hash] else {
+                            return false
+                        }
+                        return rssi1.compare(rssi2) == .orderedDescending
+                    }), id: \.self) { peripheral in
+                        let rssi = bleManager.rssiValues[peripheral.hash] ?? 0
                         Button(action: {
                             bleManager.connect(to: peripheral)
                             doScan = false
@@ -206,7 +207,8 @@ struct ContentView: View {
                             HStack {
                                 Text(peripheral.name ?? "Unknown")
                                 Spacer()
-                                Text("\(bleManager.rssiValues[peripheral.hash] ?? 0) dB")
+                                Text("\(rssi) dB").frame(width:50)
+                                Text(bleManager.getRSSIString(rssi)).foregroundColor(.green).fontWeight(.black)
                             }.foregroundColor(.white)
                         }
                     }
