@@ -64,13 +64,12 @@ struct ContentView: View {
             }
             VStack {
                 HStack {
-                    Text(bleManager.currentTime)
+                    Text(bleManager.dateStr)
                         .font(.title)
                         .fontWeight(.bold)
                 }
                 HStack {
-                    Text(bleManager.hexTime)
-                        .font(.title2)
+                    Text(String(format: "0x%llX • %i", bleManager.seconds, bleManager.seconds))
                         .fontWeight(.light)
                 }
             }.padding()
@@ -78,10 +77,8 @@ struct ContentView: View {
                 VStack {
                     HStack {
                         Text(bleManager.deviceName)
-                            .font(.headline)
                             .fontWeight(.heavy)
-                        Spacer()
-                        Text("\(bleManager.deviceRSSI) dB")
+                            .font(.title2)
                         Spacer()
                         Button(action: {
                             bleManager.disconnect()
@@ -89,7 +86,13 @@ struct ContentView: View {
                             Text("Disconnect")
                         }.buttonStyle(GrowingButton())
                     }
-                }.padding()
+                    HStack {
+                            Text(String(format: "%.2fV", bleManager.batteryVoltage))
+                                        .font(.largeTitle)
+                        Spacer()
+                            Text("\(bleManager.deviceRSSI)dB").font(.largeTitle)
+                    }.padding()
+                }
                 Divider()
                 VStack {
                     HStack {
@@ -110,9 +113,9 @@ struct ContentView: View {
                         }.buttonStyle(YellowButton())
                         Spacer()
                         VStack(alignment: .trailing) {
-                            Text(String(format: "0x%08x", bleManager.deviceLogCount))
-                                .fontWeight(.bold)
-                            Text(String(format: "%i", bleManager.deviceLogCount))
+                            Text(String(format: "%i", bleManager.deviceLogCount)).font(.title2).fontWeight(.bold)
+                            Text(String(format: "0x%08x", bleManager.deviceLogCount)).font(.subheadline)
+                                
                         }
                         Button(action: {
                             bleManager.clearLogCount()
@@ -129,9 +132,8 @@ struct ContentView: View {
                         }.buttonStyle(YellowButton())
                         Spacer()
                         VStack(alignment: .trailing) {
-                            Text(String(format: "0x%08x", bleManager.deviceLocalTime))
-                                .fontWeight(.bold)
-                            Text(String(format: "%i", bleManager.deviceLocalTime))
+                            Text(String(format: "%i", bleManager.deviceLocalTime)).font(.title2).fontWeight(.bold)
+                            Text(String(format: "0x%08x", bleManager.deviceLocalTime)).font(.subheadline)
                         }
                         Button(action: {
                             bleManager.updateLocalTime()
@@ -140,7 +142,7 @@ struct ContentView: View {
                                 .font(.system(size: 24)) // Set the font size of the icon
                         }.frame(width: 50).padding().foregroundColor(.white)
                     }
-                }.padding()
+                }
                 
                 VStack {
                     Divider()
@@ -158,7 +160,6 @@ struct ContentView: View {
                     
                     HStack {
                         NonEditableTextEditor(text: $bleManager.textbox)
-                                   .frame(height: 200)
                                    .background(Color.gray.opacity(0.1))
                                    .cornerRadius(10)
                                    .onTapGesture {}
@@ -171,7 +172,7 @@ struct ContentView: View {
                             Text(bleManager.copyTextboxString.isEmpty ? "Copy Data" : bleManager.copyTextboxString)
                         }
                     }
-                }.padding(30)
+                }
                 
                 Spacer()
             } else { // not connected
@@ -215,7 +216,7 @@ struct ContentView: View {
                 }
             }
             Spacer()
-        }
+        }.padding()
     }
 }
 
