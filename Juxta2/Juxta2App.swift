@@ -52,7 +52,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var dataExitKey: UInt8 = 0x00
     private var dataLineLength = 17 // see JUXTA_LOG_SIZE
     private var hexTimeData = [UInt8](repeating: 0, count: 4)
-    private var dataCount: UInt32 = 0
     // data vars
     private var data_logCount: UInt32 = 0
     private var data_scanAddr = [UInt8](repeating: 0, count: 6)
@@ -175,71 +174,75 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 characteristicValue.withUnsafeBytes {
                     dataBuffer = [UInt8](UnsafeBufferPointer(start: $0.baseAddress!.assumingMemoryBound(to: UInt8.self), count: characteristicValue.count))
                 }
-                print(dataBuffer[0])
+                
+//                var dataType:UInt8 = dataBuffer[0]
+                var dataLength:UInt8 = dataBuffer[1]
+                var dataPos = 2
+                while dataLength > 0 && dataPos <= dataBuffer.count {
+                    // if dataType == JUXTA_LOG
+                    for i in 1...dataLength {
+                        var data = dataBuffer[dataPos]
+                        switch i % 17 {
+                        case 1: // header
+                            break;
+                        case 2: // header
+                            break;
+                        case 3: // log count
+                            data_logCount = data_logCount | UInt32(data) << 0
+                        case 4: // log count
+                            data_logCount = data_logCount | UInt32(data) << 8
+                        case 5: // log count
+                            data_logCount = data_logCount | UInt32(data) << 16
+                        case 6: // log count
+                            data_logCount = data_logCount | UInt32(data) << 24
+                            nprint(String(format: "%05d,", data_logCount))
+                        case 7:
+                            data_scanAddr[5] = data
+                        case 8:
+                            data_scanAddr[4] = data
+                        case 9:
+                            data_scanAddr[3] = data
+                        case 10:
+                            data_scanAddr[2] = data
+                        case 11:
+                            data_scanAddr[1] = data
+                        case 12:
+                            data_scanAddr[0] = data
+                            nprint(data_scanAddr.map { String(format: "%X", $0) }.joined(separator: ":") + ",");
+                        case 13:
+                            var RSSIInt8: Int8 = 0
+                            withUnsafePointer(to: &data) { ptr in
+                                ptr.withMemoryRebound(to: Int8.self, capacity: 1) { intPtr in
+                                    RSSIInt8 = intPtr.pointee
+                                }
+                            }
+                            nprint(String(format: "%i,", RSSIInt8))
+                        case 14:
+                            data_localTime = data_localTime | UInt32(data) << 0
+                        case 15:
+                            data_localTime = data_localTime | UInt32(data) << 8
+                        case 16:
+                            data_localTime = data_localTime | UInt32(data) << 16
+                        case 0: // ie, 17
+                            data_localTime = data_localTime | UInt32(data) << 24
+                            nprint(String(format: "0x%llX\n", data_localTime))
+                            resetDataVars()
+                        default:
+                            break;
+                        }
+                        dataPos += 1
+                    }
+                    // dataType = dataBuffer[dataPos]
+                    dataLength = dataBuffer[dataPos+1]
+                    dataPos += 2 // for type, length
+                }
+                initData() // ask for more
+                timerData?.invalidate()
+                timerData = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { timer in
+                    print("Download done")
+                    self.exitData() // reset log count on Juxta, no notify back
+                }
             }
-            
-//            var data: UInt8 = 0
-//            if let characteristicValue = characteristic.value {
-//                data = characteristicValue[0]
-//            }
-//            timerData?.invalidate()
-//            timerData = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { timer in
-//                print("Download done")
-//                self.exitData() // reset log count on Juxta, no notify back
-//            }
-//            initData() // ask for more
-//            dataCount += 1
-//            print(dataCount)
-//
-//            let n = dataCount % 17
-//            switch n {
-//            case 1: // header
-//                break;
-//            case 2: // header
-//                break;
-//            case 3: // log count
-//                data_logCount = data_logCount | UInt32(data) << 0
-//            case 4: // log count
-//                data_logCount = data_logCount | UInt32(data) << 8
-//            case 5: // log count
-//                data_logCount = data_logCount | UInt32(data) << 16
-//            case 6: // log count
-//                data_logCount = data_logCount | UInt32(data) << 24
-//                nprint(String(format: "%05d,", data_logCount))
-//            case 7:
-//                data_scanAddr[5] = data
-//            case 8:
-//                data_scanAddr[4] = data
-//            case 9:
-//                data_scanAddr[3] = data
-//            case 10:
-//                data_scanAddr[2] = data
-//            case 11:
-//                data_scanAddr[1] = data
-//            case 12:
-//                data_scanAddr[0] = data
-//                nprint(data_scanAddr.map { String(format: "%X", $0) }.joined(separator: ":") + ",");
-//            case 13:
-//                var RSSIInt8: Int8 = 0
-//                withUnsafePointer(to: &data) { ptr in
-//                    ptr.withMemoryRebound(to: Int8.self, capacity: 1) { intPtr in
-//                        RSSIInt8 = intPtr.pointee
-//                    }
-//                }
-//                nprint(String(format: "%i,", RSSIInt8))
-//            case 14:
-//                data_localTime = data_localTime | UInt32(data) << 0
-//            case 15:
-//                data_localTime = data_localTime | UInt32(data) << 8
-//            case 16:
-//                data_localTime = data_localTime | UInt32(data) << 16
-//            case 0: // ie, 17
-//                data_localTime = data_localTime | UInt32(data) << 24
-//                nprint(String(format: "0x%llX\n", data_localTime))
-//                resetDataVars()
-//            default:
-//                break;
-//            }
         }
         if characteristic == logCountChar {
             let data:Data = characteristic.value!
@@ -386,7 +389,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
     
     func dumpLogData() {
-        dataCount = 0
         textbox = ""
         resetDataVars()
         initData()
@@ -401,18 +403,15 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     func exitData() {
         if let peripheral = connectedPeripheral, let characteristic = dataChar {
-            let data = Data([dataExitKey])
+            dataBuffer[0] = dataExitKey
             // make sure logCount is reset on Juxta, no notification
-            peripheral.writeValue(data, for: characteristic, type: .withResponse)
-            peripheral.writeValue(data, for: characteristic, type: .withResponse)
-            peripheral.writeValue(data, for: characteristic, type: .withResponse)
-            dataCount = 0
+            peripheral.writeValue(Data(dataBuffer), for: characteristic, type: .withResponse)
         }
     }
     
     func resetDataVars() {
         data_logCount = 0
-        data_scanAddr = [0,0,0,0,0,0]
+        data_scanAddr = [UInt8](repeating: 0, count: 6)
         data_localTime = 0
     }
     
@@ -420,13 +419,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         if rssi.intValue > -50 {
             return "|||||"
         } else if rssi.intValue > -60 {
-            return "|||| "
+            return "||||."
         } else if rssi.intValue > -70 {
-            return "|||  "
+            return "|||.."
         } else if rssi.intValue > -80 {
-            return "||   "
+            return "||..."
         } else {
-            return "|    "
+            return "|...."
         }
     }
 }
