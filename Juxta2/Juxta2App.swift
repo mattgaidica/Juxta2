@@ -30,12 +30,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var deviceLogCount: UInt32 = 0
     @Published var deviceLocalTime: UInt32 = 0
     @Published var deviceAdvertisingMode: UInt8 = 0
-    @Published var textbox: String = "Log data..."
+    @Published var textbox: String = "Data..."
     @Published var isScanning: Bool = false
     @Published var dateStr: String = "XXX X, XXXX XX:XX"
     @Published var copyTextboxString: String = ""
     @Published var batteryVoltage: Float = 0.0
     @Published var seconds: UInt32 = 0
+    @Published var buttonDisable: Bool = false
 
     private var discoveredDevices = Set<CBPeripheral>()
     private var connectedPeripheral: CBPeripheral?
@@ -132,12 +133,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     readAdvertisingMode()
                 }
                 if characteristic.uuid == CBUUIDs.JuxtaDataChar {
-                    jprint("Data characteristic found")
+                    jprint("Data characteristic found - notify")
                     dataChar = characteristic
                     peripheral.setNotifyValue(true, for: characteristic)
                 }
                 if characteristic.uuid == CBUUIDs.BatteryVoltageChar {
-                    jprint("Battery characteristic found")
+                    jprint("Battery characteristic found - notify")
                     batteryVoltageChar = characteristic
                     peripheral.setNotifyValue(true, for: characteristic)
                 }
@@ -174,8 +175,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 characteristicValue.withUnsafeBytes {
                     dataBuffer = [UInt8](UnsafeBufferPointer(start: $0.baseAddress!.assumingMemoryBound(to: UInt8.self), count: characteristicValue.count))
                 }
-                
-//                var dataType:UInt8 = dataBuffer[0]
+                buttonDisable = true
+//                var dataType:UInt8 = dataBuffer[0] // type
                 var dataLength:UInt8 = dataBuffer[1]
                 var dataPos = 2
                 while dataLength > 0 && dataPos <= dataBuffer.count {
@@ -225,7 +226,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                             data_localTime = data_localTime | UInt32(data) << 16
                         case 0: // ie, 17
                             data_localTime = data_localTime | UInt32(data) << 24
-                            nprint(String(format: "0x%llX\n", data_localTime))
+//                            nprint(String(format: "0x%llX\n", data_localTime))
+                            nprint(String(format: "%i\n", data_localTime))
                             resetDataVars()
                         default:
                             break;
@@ -240,6 +242,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 timerData?.invalidate()
                 timerData = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { timer in
                     print("Download done")
+                    self.buttonDisable = false
                     self.exitData() // reset log count on Juxta, no notify back
                 }
             }

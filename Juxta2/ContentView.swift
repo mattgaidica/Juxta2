@@ -33,6 +33,7 @@ struct YellowButton: ButtonStyle {
 }
 
 struct BlueButton: ButtonStyle {
+    @ObservedObject var bleManager = BLEManager()
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .padding()
@@ -41,6 +42,7 @@ struct BlueButton: ButtonStyle {
             .clipShape(Capsule())
             .scaleEffect(configuration.isPressed ? 1.2 : 1)
             .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
+            .opacity(bleManager.buttonDisable ? 0.5 : 1)
     }
 }
 
@@ -155,14 +157,30 @@ struct ContentView: View {
                             bleManager.dumpLogData()
                         }) {
                             Text("Dump Log Data")
-                        }.buttonStyle(BlueButton())
+                        }.buttonStyle(BlueButton()).disabled(bleManager.buttonDisable)
+                        Spacer()
+                        Text("n = \(bleManager.textbox.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count)")
+                            .font(.footnote)
+                        Spacer()
+                        Button(action: {
+                            bleManager.dumpLogData()
+                        }) {
+                            Text("Dump Axy Data")
+                        }.buttonStyle(BlueButton()).disabled(bleManager.buttonDisable)
                     }
                     
                     HStack {
-                        NonEditableTextEditor(text: $bleManager.textbox)
-                                   .background(Color.gray.opacity(0.1))
-                                   .cornerRadius(10)
-                                   .onTapGesture {}
+                        ZStack(alignment: .bottom) {
+                            NonEditableTextEditor(text: $bleManager.textbox)
+                                .background(Color.gray.opacity(0.1))
+                                .cornerRadius(10)
+                                .onTapGesture {}
+                            LinearGradient(
+                                gradient: Gradient(colors: [.clear, .black]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ).frame(height: 20)
+                        }
                     }.padding()
                     
                     HStack {
@@ -216,7 +234,7 @@ struct ContentView: View {
                 }
             }
             Spacer()
-        }.padding()
+        }.padding().colorScheme(.dark) // Force dark mode
     }
 }
 
