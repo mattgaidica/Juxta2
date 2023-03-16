@@ -249,11 +249,15 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
         if characteristic == logCountChar {
             let data:Data = characteristic.value!
-            deviceLogCount = rev32(data)
+            let _ = data.withUnsafeBytes { pointer in
+                deviceLogCount = pointer.load(as: UInt32.self)
+            }
         }
         if characteristic == localTimeChar {
             let data:Data = characteristic.value!
-            deviceLocalTime = rev32(data)
+            let _ = data.withUnsafeBytes { pointer in
+                deviceLocalTime = pointer.load(as: UInt32.self)
+            }
         }
         if characteristic == advertiseModeChar {
             if let characteristicValue = characteristic.value {
@@ -268,16 +272,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 batteryVoltage = Float(uint32Value) / 1000000
             }
         }
-    }
-    
-    func rev32(_ data: Data) -> UInt32 {
-        var int32val: UInt32 = 0
-        let _ = data.withUnsafeBytes { pointer in
-            int32val = pointer.load(as: UInt32.self)
-        }
-        let int32data = withUnsafeBytes(of: &int32val) { Data($0) }  // Convert to byte sequence
-        let reversedData = Data(int32data.reversed())  // Reverse byte sequence
-        return reversedData.withUnsafeBytes { $0.load(as: UInt32.self) }  // Convert back to Int32
     }
     
     func connect(to peripheral: CBPeripheral) {
@@ -339,12 +333,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     func updateLocalTime() {
         if let peripheral = connectedPeripheral, let characteristic = localTimeChar {
             jprint("Updating local time")
-            let seconds =  UInt32(NSDate().timeIntervalSince1970)
-            hexTimeData[3] = UInt8(seconds & 0xFF)
-            hexTimeData[2] = UInt8(seconds >> 8 & 0xFF)
-            hexTimeData[1] = UInt8(seconds >> 16 & 0xFF)
-            hexTimeData[0] = UInt8(seconds >> 24 & 0xFF)
-            let data = Data(hexTimeData)
+            var seconds =  UInt32(NSDate().timeIntervalSince1970)
+            let data = Data(bytes: &seconds, count: MemoryLayout<UInt32>.size)
             peripheral.writeValue(data, for: characteristic, type: .withResponse)
             readLocalTime()
         }
