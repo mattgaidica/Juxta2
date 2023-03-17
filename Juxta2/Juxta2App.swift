@@ -15,13 +15,27 @@ struct Juxta2App: App {
             ContentView()
         }
     }
+    
+}
 
+struct ActivityViewController: UIViewControllerRepresentable {
+    
+    var activityItems: [Any]
+    var applicationActivities: [UIActivity]? = nil
+    
+    func makeUIViewController(context: UIViewControllerRepresentableContext<ActivityViewController>) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: applicationActivities)
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: UIViewControllerRepresentableContext<ActivityViewController>) {}
+    
 }
 
 class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     
     var myCentral: CBCentralManager!
-    @Published var isConnected: Bool = true
+    @Published var isConnected: Bool = false
     @Published var isSwitchedOn = false
     @Published var devices: [CBPeripheral] = []
     @Published var rssiValues: [Int: NSNumber] = [:]
@@ -30,14 +44,20 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var deviceLogCount: UInt32 = 0
     @Published var deviceLocalTime: UInt32 = 0
     @Published var deviceAdvertisingMode: UInt8 = 0
-    @Published var textbox: String = "Data..."
+    @Published var juxtaTextbox: String = "Data..."
     @Published var isScanning: Bool = false
     @Published var dateStr: String = "XXX X, XXXX XX:XX"
     @Published var copyTextboxString: String = ""
     @Published var batteryVoltage: Float = 0.0
     @Published var seconds: UInt32 = 0
     @Published var buttonDisable: Bool = false
-
+    
+    public let RESET_DUMP_KEY: UInt8 = 0x00
+    public let LOGS_DUMP_KEY: UInt8 = 0x11
+    public let META_DUMP_KEY: UInt8 = 0x22
+    private let JUXTA_LOG_LENGTH: UInt32 = 17
+    private let JUXTA_META_LENGTH: UInt32 = 18
+    
     private var discoveredDevices = Set<CBPeripheral>()
     private var connectedPeripheral: CBPeripheral?
     private var timerRSSI: Timer?
@@ -49,37 +69,40 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var advertiseModeChar: CBCharacteristic?
     private var dataChar: CBCharacteristic?
     private var batteryVoltageChar: CBCharacteristic?
-    private var dataInitKey: UInt8 = 0xFF
-    private var dataExitKey: UInt8 = 0x00
-    private var dataLineLength = 17 // see JUXTA_LOG_SIZE
     private var hexTimeData = [UInt8](repeating: 0, count: 4)
+    private var dumpType: UInt8 = 0
     // data vars
     private var data_logCount: UInt32 = 0
     private var data_scanAddr = [UInt8](repeating: 0, count: 6)
     private var data_localTime: UInt32 = 0
+    private var data_temp: Int16 = 0
+    private var data_voltage: UInt16 = 0
+    private var data_xl = [Int16](repeating: 0, count: 3)
+    private var data_mg = [Int16](repeating: 0, count: 3)
     private var dataBuffer = [UInt8](repeating: 0, count: 128)
+    private var dataPos: UInt32 = 0
+    
+    private var startTime: DispatchTime = DispatchTime.now()
+    private var endTime: DispatchTime = DispatchTime.now()
     
     override init() {
         super.init()
         myCentral = CBCentralManager(delegate: self, queue: nil)
         myCentral.delegate = self
-        self.timer1Hz = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+        timer1Hz = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
             self.dateStr = self.getDateStr()
             self.seconds = UInt32(NSDate().timeIntervalSince1970)
-            if self.isScanning {
-                self.myCentral.scanForPeripherals(withServices: [CBUUIDs.JuxtaService], options: nil)
-            }
         }
     }
     
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
-         if central.state == .poweredOn {
-             isSwitchedOn = true
-             isConnected = false // reset on phone
-         }
-         else {
-             isSwitchedOn = false
-         }
+        if central.state == .poweredOn {
+            isSwitchedOn = true
+            isConnected = false // reset on phone
+        }
+        else {
+            isSwitchedOn = false
+        }
     }
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
@@ -89,21 +112,19 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             devices.append(peripheral)
         }
     }
-
+    
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         isConnected = true
-        textbox = ""
+        juxtaTextbox = ""
         deviceName = peripheral.name ?? "Unknown"
         connectedPeripheral = peripheral
         self.timerRSSI = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
             peripheral.readRSSI()
         }
-        resetDevices()
-        devices.append(peripheral)
         peripheral.delegate = self
         peripheral.discoverServices(nil)
     }
-
+    
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard let services = peripheral.services else { return }
         for service in services {
@@ -154,18 +175,62 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         rssiValues[peripheral.hash] = RSSI // old
         deviceRSSI = RSSI.intValue
     }
-
+    
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         isConnected = false
         print("Failed to connect to peripheral: \(peripheral.name ?? "")")
     }
-
+    
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         self.timerRSSI?.invalidate()
         self.timerRSSI = nil
         isConnected = false
         resetDevices()
         print("Disconnected from peripheral: \(peripheral.name ?? "")")
+    }
+    
+    func connect(to peripheral: CBPeripheral) {
+        stopScan()
+        myCentral.connect(peripheral, options: nil)
+    }
+    
+    func disconnect() {
+        isConnected = false
+        if let peripheral = self.connectedPeripheral {
+            myCentral.cancelPeripheralConnection(peripheral)
+        }
+        resetDevices()
+    }
+    
+    func startScan() {
+        print("Starting scan")
+        isScanning = true
+        resetDevices()
+        // !! this will not update RSSI unless scanning is looped
+        var loopCount = 0
+        timerScan = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { _ in
+            if loopCount < 5 {
+                self.myCentral.scanForPeripherals(withServices: [CBUUIDs.JuxtaService], options: nil)
+                loopCount += 1
+            } else {
+                self.stopScan()
+            }
+        }
+    }
+    
+    func stopScan() {
+        print("Stopping scan")
+        isScanning = false
+        timerScan?.invalidate()
+        timerScan = nil
+        myCentral.stopScan()
+    }
+    
+    func resetDevices() {
+        devices = []
+        discoveredDevices = Set<CBPeripheral>()
+        rssiValues = [:]
+        connectedPeripheral = nil
     }
     
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
@@ -176,18 +241,20 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     dataBuffer = [UInt8](UnsafeBufferPointer(start: $0.baseAddress!.assumingMemoryBound(to: UInt8.self), count: characteristicValue.count))
                 }
                 buttonDisable = true
-//                var dataType:UInt8 = dataBuffer[0] // type
-                var dataLength:UInt8 = dataBuffer[1]
-                var dataPos = 2
-                while dataLength > 0 && dataPos <= dataBuffer.count {
-                    // if dataType == JUXTA_LOG
-                    for i in 1...dataLength {
-                        var data = dataBuffer[dataPos]
-                        switch i % 17 {
+                var forceExit: Bool = false
+                let UUIDString = CBUUIDs.JuxtaService.uuidString.suffix(4).dropFirst(2)
+                if dumpType == LOGS_DUMP_KEY {
+                    for i in 0...dataBuffer.count-1 {
+                        dataPos += 1
+                        var data = dataBuffer[i]
+                        switch dataPos % JUXTA_LOG_LENGTH {
                         case 1: // header
-                            break;
+                            if String(format: "%02X", data) != UUIDString {
+                                forceExit = true
+                            }
+                            break
                         case 2: // header
-                            break;
+                            break
                         case 3: // log count
                             data_logCount = data_logCount | UInt32(data) << 0
                         case 4: // log count
@@ -226,25 +293,89 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                             data_localTime = data_localTime | UInt32(data) << 16
                         case 0: // ie, 17
                             data_localTime = data_localTime | UInt32(data) << 24
-//                            nprint(String(format: "0x%llX\n", data_localTime))
                             nprint(String(format: "%i\n", data_localTime))
-                            resetDataVars()
+                            resetVars()
                         default:
-                            break;
+                            break
                         }
-                        dataPos += 1
+                        if forceExit {
+                            print("forcing log exit")
+                            break
+                        }
                     }
-                    // dataType = dataBuffer[dataPos]
-                    dataLength = dataBuffer[dataPos+1]
-                    dataPos += 2 // for type, length
+                    if !forceExit {
+                        requestData() // ask for more
+                    }
                 }
-                initData() // ask for more
-                timerData?.invalidate()
-                timerData = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { timer in
-                    print("Download done")
-                    self.buttonDisable = false
-                    self.exitData() // reset log count on Juxta, no notify back
+                if dumpType == META_DUMP_KEY {
+                    for i in 0...dataBuffer.count-1 {
+                        dataPos += 1
+                        let data = dataBuffer[i]
+//                        print(String(format: "%i - %i - %02X", dataPos,dataPos % JUXTA_META_LENGTH, data))
+                        switch dataPos % JUXTA_META_LENGTH {
+                        case 1: // header
+                            if String(format: "%02X", data) != UUIDString {
+                                forceExit = true
+                            }
+                            break
+                        case 2: // header
+                            break
+                        case 3: // temp
+                            data_temp = data_temp | Int16(data) << 0
+                        case 4: // temp
+                            data_temp = data_temp | Int16(data) << 8
+                            nprint(String(format: "%1.2f,", lsm303agr_from_lsb_hr_to_celsius(data_temp)))
+                        case 5: // voltage
+                            data_voltage = data_voltage | UInt16(data) << 0
+                        case 6: // voltage
+                            data_voltage = data_voltage | UInt16(data) << 8
+                            nprint(String(format: "%1.2f,", juxta_raw_voltage_to_actual(data_voltage)))
+                        case 7:
+                            data_xl[0] = data_xl[0] | Int16(data) << 0
+                        case 8:
+                            data_xl[0] = data_xl[0] | Int16(data) << 8
+                            nprint(String(format: "%1.2f,", lsm303agr_from_fs_2g_hr_to_mg(data_xl[0])))
+                        case 9:
+                            data_xl[1] = data_xl[1] | Int16(data) << 0
+                        case 10:
+                            data_xl[1] = data_xl[1] | Int16(data) << 8
+                            nprint(String(format: "%1.2f,", lsm303agr_from_fs_2g_hr_to_mg(data_xl[1])))
+                        case 11:
+                            data_xl[2] = data_xl[2] | Int16(data) << 0
+                        case 12:
+                            data_xl[2] = data_xl[2] | Int16(data) << 8
+                            nprint(String(format: "%1.2f,", lsm303agr_from_fs_2g_hr_to_mg(data_xl[2])))
+                        case 13:
+                            data_mg[0] = data_mg[0] | Int16(data) << 0
+                        case 14:
+                            data_mg[0] = data_mg[0] | Int16(data) << 8
+                            nprint(String(format: "%1.2f,", lsm303agr_from_lsb_to_mgauss(data_mg[0])))
+                        case 15:
+                            data_mg[1] = data_mg[1] | Int16(data) << 0
+                        case 16:
+                            data_mg[1] = data_mg[1] | Int16(data) << 8
+                            nprint(String(format: "%1.2f,", lsm303agr_from_lsb_to_mgauss(data_mg[1])))
+                        case 17:
+                            data_mg[2] = data_mg[2] | Int16(data) << 0
+                        case 0: // ie, 18
+                            data_mg[2] = data_mg[2] | Int16(data) << 8
+                            nprint(String(format: "%1.2f\n", lsm303agr_from_lsb_to_mgauss(data_mg[2])))
+                            resetVars()
+                            break
+                        default:
+                            break
+                        }
+                        if forceExit {
+                            print("forcing meta exit")
+                            break
+                        }
+                    }
+                    if !forceExit {
+                        requestData() // ask for more
+                    }
                 }
+                
+                resetDataTimer()
             }
         }
         if characteristic == logCountChar {
@@ -272,41 +403,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 batteryVoltage = Float(uint32Value) / 1000000
             }
         }
-    }
-    
-    func connect(to peripheral: CBPeripheral) {
-        stopScan()
-        self.timerScan?.invalidate()
-        self.timerScan = nil
-        myCentral.connect(peripheral, options: nil)
-    }
-    
-    func disconnect() {
-        isConnected = false
-        resetDevices()
-        if let peripheral = self.connectedPeripheral {
-            myCentral.cancelPeripheralConnection(peripheral)
-        }
-    }
-    
-    func startScan() {
-        print("Starting scan")
-        isScanning = true
-        resetDevices()
-        self.timerScan = Timer.scheduledTimer(withTimeInterval: 20, repeats: false) { _ in
-            self.stopScan()
-        }
-     }
-    
-    func stopScan() {
-        print("Stopping scan")
-        isScanning = false
-        myCentral.stopScan()
-    }
-    
-    func resetDevices() {
-        devices = []
-        discoveredDevices = Set<CBPeripheral>()
     }
     
     func getDateStr() -> String {
@@ -367,58 +463,88 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     func jprint(_ text: String) {
         print(text)
-        textbox = text + "\n" + textbox
+        juxtaTextbox = text + "\n" + juxtaTextbox
     }
     func nprint(_ text: String) {
-        textbox = textbox + text
+        juxtaTextbox = juxtaTextbox + text
     }
     
     func copyTextbox() {
-        UIPasteboard.general.string = textbox
+        UIPasteboard.general.string = juxtaTextbox
         copyTextboxString = "Copied!"
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             self.copyTextboxString = ""
         }
     }
     
-    func dumpLogData() {
-        textbox = ""
-        resetDataVars()
-        initData()
+    func dumpData(_ dt: UInt8) {
+        dumpType = dt
+        juxtaTextbox = ""
+        resetVars()
+        dataPos = 0
+        resetDataTimer()
+        requestData()
+        startTime = DispatchTime.now()
     }
     
-    func initData() {
-        if let peripheral = connectedPeripheral, let characteristic = dataChar {
-            dataBuffer[0] = dataInitKey
-            peripheral.writeValue(Data(dataBuffer), for: characteristic, type: .withResponse)
+    func resetDataTimer() {
+        timerData?.invalidate()
+        timerData = Timer.scheduledTimer(withTimeInterval: 1, repeats: false) { timer in
+            self.endTime = DispatchTime.now()
+            let elapsedTime = self.endTime.uptimeNanoseconds - self.startTime.uptimeNanoseconds
+            let elapsedSeconds = Double(elapsedTime) / 1_000_000_000
+            print(elapsedSeconds)
+            print("Download done")
+            self.buttonDisable = false
+            self.dumpType = self.RESET_DUMP_KEY
+            self.requestData() // reset! this has no response
         }
     }
     
-    func exitData() {
-        if let peripheral = connectedPeripheral, let characteristic = dataChar {
-            dataBuffer[0] = dataExitKey
-            // make sure logCount is reset on Juxta, no notification
-            peripheral.writeValue(Data(dataBuffer), for: characteristic, type: .withResponse)
-        }
-    }
-    
-    func resetDataVars() {
+    func resetVars() {
         data_logCount = 0
         data_scanAddr = [UInt8](repeating: 0, count: 6)
         data_localTime = 0
+        data_temp = 0
+        data_voltage = 0
+        data_xl = [Int16](repeating: 0, count: 3)
+        data_mg = [Int16](repeating: 0, count: 3)
+    }
+    
+    func requestData() {
+        if let peripheral = connectedPeripheral, let characteristic = dataChar {
+            dataBuffer[0] = dumpType
+            peripheral.writeValue(Data(dataBuffer), for: characteristic, type: .withResponse)
+        }
     }
     
     func getRSSIString(_ rssi: NSNumber) -> String {
         if rssi.intValue > -50 {
             return "|||||"
         } else if rssi.intValue > -60 {
-            return "||||."
+            return "||||•"
         } else if rssi.intValue > -70 {
-            return "|||.."
+            return "|||••"
         } else if rssi.intValue > -80 {
-            return "||..."
+            return "||•••"
         } else {
-            return "|...."
+            return "|••••"
         }
+    }
+    
+    func lsm303agr_from_fs_2g_hr_to_mg(_ lsb: Int16) -> Float {
+        return (Float(lsb) / 16.0) * 0.98;
+    }
+    
+    func juxta_raw_voltage_to_actual(_ lsb: UInt16) -> Float {
+        return (Float(lsb) * 250) / 100 / 1000
+    }
+    
+    func lsm303agr_from_lsb_hr_to_celsius(_ lsb: Int16) -> Float {
+        ((Float(data_temp) / 64.0) / 4.0) + 25.0
+    }
+    
+    func lsm303agr_from_lsb_to_mgauss(_ lsb: Int16) -> Float {
+        return Float(lsb) * 1.5
     }
 }

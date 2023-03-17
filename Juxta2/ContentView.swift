@@ -154,24 +154,24 @@ struct ContentView: View {
                     }.padding()
                     HStack {
                         Button(action: {
-                            bleManager.dumpLogData()
+                            bleManager.dumpData(bleManager.LOGS_DUMP_KEY)
                         }) {
                             Text("Dump Log Data")
                         }.buttonStyle(BlueButton()).disabled(bleManager.buttonDisable)
                         Spacer()
-                        Text("n = \(bleManager.textbox.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count)")
+                        Text("n = \(bleManager.juxtaTextbox.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count)")
                             .font(.footnote)
                         Spacer()
                         Button(action: {
-                            bleManager.dumpLogData()
+                            bleManager.dumpData(bleManager.META_DUMP_KEY)
                         }) {
-                            Text("Dump Axy Data")
+                            Text("Dump Meta Data")
                         }.buttonStyle(BlueButton()).disabled(bleManager.buttonDisable)
                     }
                     
                     HStack {
                         ZStack(alignment: .bottom) {
-                            NonEditableTextEditor(text: $bleManager.textbox)
+                            NonEditableTextEditor(text: $bleManager.juxtaTextbox)
                                 .background(Color.gray.opacity(0.1))
                                 .cornerRadius(10)
                                 .onTapGesture {}
@@ -206,7 +206,6 @@ struct ContentView: View {
                             bleManager.startScan()
                         }) {
                             Text("Start Scanning")
-                            
                         }.buttonStyle(BlueButton())
                     }
                 }

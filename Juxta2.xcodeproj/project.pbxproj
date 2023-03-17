@@ -21,6 +21,7 @@
 		FB8950E929B1383800FF545A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FB8950EC29B1383800FF545A /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		FB8950F329B13BD200FF545A /* CBUUIDS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CBUUIDS.swift; sourceTree = "<group>"; };
+		FB9DCBB229C495340009503C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -53,6 +54,7 @@
 		FB8950E429B1383700FF545A /* Juxta2 */ = {
 			isa = PBXGroup;
 			children = (
+				FB9DCBB229C495340009503C /* Info.plist */,
 				FB8950E529B1383700FF545A /* Juxta2App.swift */,
 				FB8950E729B1383700FF545A /* ContentView.swift */,
 				FB8950F329B13BD200FF545A /* CBUUIDS.swift */,
@@ -278,6 +280,7 @@
 				DEVELOPMENT_TEAM = WBU4CZ6AZJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Juxta2/Info.plist;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Juxta needs BLE";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Can Juxta use BLE peripherals?";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -309,6 +312,7 @@
 				DEVELOPMENT_TEAM = WBU4CZ6AZJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Juxta2/Info.plist;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Juxta needs BLE";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Can Juxta use BLE peripherals?";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
