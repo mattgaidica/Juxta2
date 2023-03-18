@@ -76,6 +76,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var deviceBatteryVoltageChar: CBCharacteristic?
     private var metaCountChar: CBCharacteristic?
     private var deviceTemperatureChar: CBCharacteristic?
+    private var commandChar: CBCharacteristic?
     private var hexTimeData = [UInt8](repeating: 0, count: 4)
     private var dumpType: UInt8 = 0
     // data vars
@@ -88,9 +89,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var data_mg = [Int16](repeating: 0, count: 3)
     private var dataBuffer = [UInt8](repeating: 0, count: 128)
     private var dataPos: UInt32 = 0
-    
-    private var startTime: DispatchTime = DispatchTime.now()
-    private var endTime: DispatchTime = DispatchTime.now()
     
     override init() {
         super.init()
@@ -137,7 +135,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         guard let services = peripheral.services else { return }
         for service in services {
             if service.uuid == CBUUIDs.JuxtaService {
-                peripheral.discoverCharacteristics([CBUUIDs.JuxtaLogCountChar, CBUUIDs.JuxtaMetaCountChar, CBUUIDs.JuxtaLocalTimeChar, CBUUIDs.BatteryVoltageChar, CBUUIDs.DeviceTemperatureChar, CBUUIDs.JuxtaAdvertiseModeChar, CBUUIDs.JuxtaDataChar], for: service)
+                peripheral.discoverCharacteristics([CBUUIDs.JuxtaLogCountChar, CBUUIDs.JuxtaMetaCountChar, CBUUIDs.JuxtaLocalTimeChar, CBUUIDs.BatteryVoltageChar, CBUUIDs.DeviceTemperatureChar, CBUUIDs.JuxtaAdvertiseModeChar, CBUUIDs.JuxtaDataChar, CBUUIDs.JuxtaCommandChar], for: service)
             }
             jprint("Service discovered: \(service.uuid)")
         }
@@ -180,6 +178,10 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     jprint("Data characteristic found - notify")
                     dataChar = characteristic
                     peripheral.setNotifyValue(true, for: characteristic)
+                }
+                if characteristic.uuid == CBUUIDs.JuxtaCommandChar {
+                    jprint("Command characteristic found")
+                    commandChar = characteristic
                 }
             }
         }
@@ -299,13 +301,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 characteristicValue.withUnsafeBytes {
                     dataBuffer = [UInt8](UnsafeBufferPointer(start: $0.baseAddress!.assumingMemoryBound(to: UInt8.self), count: characteristicValue.count))
                 }
-                buttonDisable = true
                 var forceExit: Bool = false
                 let UUIDString = CBUUIDs.JuxtaService.uuidString.suffix(4).dropFirst(2)
                 if dumpType == LOGS_DUMP_KEY {
-                    if dataPos == 0 {
-                        nprint("mac,rssi,time\n")
-                    }
                     for i in 0...dataBuffer.count-1 {
                         dataPos += 1
                         var data = dataBuffer[i]
@@ -361,9 +359,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     }
                 }
                 if dumpType == META_DUMP_KEY {
-                    if dataPos == 0 {
-                        nprint("temp,volts,xlx,xly,xlz,mgx,mgy,mgz,time\n")
-                    }
                     for i in 0...dataBuffer.count-1 {
                         dataPos += 1
                         let data = dataBuffer[i]
@@ -535,22 +530,22 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
     
     func dumpData(_ dt: UInt8) {
+        buttonDisable = true
         dumpType = dt
-        juxtaTextbox = ""
+        if dumpType == LOGS_DUMP_KEY {
+            juxtaTextbox = "mac,rssi,time\n"
+        } else if dumpType == META_DUMP_KEY {
+            juxtaTextbox = "temp,volts,xlx,xly,xlz,mgx,mgy,mgz,time\n"
+        }
         resetVars()
         dataPos = 0
         resetDataTimer()
         requestData()
-        startTime = DispatchTime.now()
     }
     
     func resetDataTimer() {
         timerData?.invalidate()
         timerData = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { timer in
-            self.endTime = DispatchTime.now()
-            let elapsedTime = self.endTime.uptimeNanoseconds - self.startTime.uptimeNanoseconds
-            let elapsedSeconds = Double(elapsedTime) / 1_000_000_000
-            print(elapsedSeconds)
             print("Download done")
             self.buttonDisable = false
             self.dumpType = self.RESET_DUMP_KEY
@@ -569,25 +564,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
     
     func requestData() {
-        if let peripheral = connectedPeripheral, let characteristic = dataChar {
-            dataBuffer[0] = dumpType
-            usleep(1000)
-            peripheral.writeValue(Data(dataBuffer), for: characteristic, type: .withResponse)
+        if let peripheral = connectedPeripheral, let characteristic = commandChar {
+//            dataBuffer[0] = dumpType
+            peripheral.writeValue(Data([dumpType]), for: characteristic, type: .withResponse)
         }
     }
     
     func getRSSIString(_ rssi: NSNumber) -> String {
-        if rssi.intValue > -50 {
-            return "|||||"
-        } else if rssi.intValue > -60 {
-            return "||||•"
-        } else if rssi.intValue > -70 {
-            return "|||••"
-        } else if rssi.intValue > -80 {
-            return "||•••"
-        } else {
-            return "|••••"
-        }
+        return String(repeating: "•", count: Int(100 - abs(rssi.intValue)) / 5)
     }
     
     func lsm303agr_from_fs_2g_hr_to_mg(_ lsb: Int16) -> Float {

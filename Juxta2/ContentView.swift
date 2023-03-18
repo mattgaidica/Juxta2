@@ -11,7 +11,7 @@ import CoreBluetooth
 struct WhiteButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .padding()
+            .padding(12)
             .background(.white)
             .foregroundColor(.black)
             .clipShape(Capsule())
@@ -44,7 +44,6 @@ struct BlueButton: ButtonStyle {
             .clipShape(Capsule())
             .scaleEffect(configuration.isPressed ? 1.2 : 1)
             .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
-            .opacity(bleManager.buttonDisable ? 0.5 : 1)
     }
 }
 
@@ -184,7 +183,7 @@ struct ContentView: View {
                             bleManager.dumpData(bleManager.LOGS_DUMP_KEY)
                         }) {
                             Text("Dump Log Data")
-                        }.buttonStyle(BlueButton()).disabled(bleManager.buttonDisable)
+                        }.buttonStyle(BlueButton()).disabled(bleManager.buttonDisable).opacity(bleManager.buttonDisable ? 0.5 : 1)
                         Spacer()
                         // include header below (-1)
                         Text("\(bleManager.juxtaTextbox.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count-1)")
@@ -194,7 +193,7 @@ struct ContentView: View {
                             bleManager.dumpData(bleManager.META_DUMP_KEY)
                         }) {
                             Text("Dump Meta Data")
-                        }.buttonStyle(BlueButton()).disabled(bleManager.buttonDisable)
+                        }.buttonStyle(BlueButton()).disabled(bleManager.buttonDisable).opacity(bleManager.buttonDisable ? 0.5 : 1)
                     }
                     
                     HStack {
@@ -253,8 +252,8 @@ struct ContentView: View {
                             HStack {
                                 Text(peripheral.name ?? "Unknown")
                                 Spacer()
-                                Text("\(rssi) dB").frame(width:50)
                                 Text(bleManager.getRSSIString(rssi)).foregroundColor(.green).fontWeight(.black)
+                                Text("\(rssi) dB").frame(width:50)
                             }.foregroundColor(.white)
                         }
                     }
