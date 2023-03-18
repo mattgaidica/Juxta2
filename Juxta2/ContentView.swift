@@ -8,7 +8,7 @@
 import SwiftUI
 import CoreBluetooth
 
-struct GrowingButton: ButtonStyle {
+struct WhiteButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .padding()
@@ -23,7 +23,8 @@ struct GrowingButton: ButtonStyle {
 struct YellowButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .padding()
+            .frame(width:150)
+            .padding(12)
             .background(.yellow)
             .foregroundColor(.black)
             .clipShape(Capsule())
@@ -36,7 +37,8 @@ struct BlueButton: ButtonStyle {
     @ObservedObject var bleManager = BLEManager()
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .padding()
+            .frame(width:130)
+            .padding(12)
             .background(.blue)
             .foregroundColor(.black)
             .clipShape(Capsule())
@@ -49,6 +51,7 @@ struct BlueButton: ButtonStyle {
 struct ContentView: View {
     @ObservedObject var bleManager = BLEManager()
     @State var doScan = false
+    @State private var isPulsing = false
     
     let options: [Option] = [
         Option(value: 0, label: "Axy Logger"),
@@ -58,12 +61,7 @@ struct ContentView: View {
     
     var body: some View {
         VStack (spacing: 10) {
-            VStack {
-                Text("Juxta 2")
-                    .font(.largeTitle)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity)
-            }
+            Spacer()
             VStack {
                 HStack {
                     Text(bleManager.dateStr)
@@ -75,6 +73,18 @@ struct ContentView: View {
                         .fontWeight(.light)
                 }
             }.padding()
+            
+            .sheet(isPresented: $bleManager.isConnecting) {
+                Text("CONNECTING").font(.title)
+                    .font(.title)
+                    .scaleEffect(isPulsing ? 1.25 : 1.0) // scale the text up and down
+                    .onAppear {
+                        withAnimation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) { // animate the scale effect
+                            isPulsing = true
+                        }
+                    }
+            }
+            
             if bleManager.isConnected {
                 VStack {
                     HStack {
@@ -86,16 +96,19 @@ struct ContentView: View {
                             bleManager.disconnect()
                         }) {
                             Text("Disconnect")
-                        }.buttonStyle(GrowingButton())
+                        }.buttonStyle(WhiteButton())
                     }
                     HStack {
-                            Text(String(format: "%.2fV", bleManager.batteryVoltage))
-                                        .font(.largeTitle)
+                            Text(String(format: "%.2fV", bleManager.deviceBatteryVoltage))
+                            .font(.largeTitle)
+                            .fontWeight(.thin)
                         Spacer()
-                            Text("\(bleManager.deviceRSSI)dB").font(.largeTitle)
-                    }.padding()
+                        Text(String(format: "%.2f°F", bleManager.deviceTemperature)).font(.largeTitle).fontWeight(.thin)
+                        Spacer()
+                        Text("\(bleManager.deviceRSSI)dB").font(.largeTitle).fontWeight(.thin)
+                    }
                 }
-                Divider()
+                Divider().padding()
                 VStack {
                     HStack {
                         Picker(selection: $bleManager.deviceAdvertisingMode, label: Text("Select Option"), content: {
@@ -113,18 +126,36 @@ struct ContentView: View {
                         }) {
                             Text("Read Log Count")
                         }.buttonStyle(YellowButton())
+
+                        Button(action: {
+                            bleManager.clearLogCount()
+                        }) {
+                            Text("RESET").foregroundColor(.red)
+                        }.padding()
                         Spacer()
                         VStack(alignment: .trailing) {
                             Text(String(format: "%i", bleManager.deviceLogCount)).font(.title2).fontWeight(.bold)
                             Text(String(format: "0x%08x", bleManager.deviceLogCount)).font(.subheadline)
                                 
                         }
+                    }
+                    HStack {
                         Button(action: {
-                            bleManager.clearLogCount()
+                            bleManager.readMetaCount()
                         }) {
-                            Image(systemName: "trash.slash.fill") // Use the SF Symbols library
-                                .font(.system(size: 24)) // Set the font size of the icon
-                        }.frame(width: 50).padding().foregroundColor(.white)
+                            Text("Read Meta Count")
+                        }.buttonStyle(YellowButton())
+
+                        Button(action: {
+                            bleManager.clearMetaCount()
+                        }) {
+                            Text("RESET").foregroundColor(.red)
+                        }.padding()
+                        Spacer()
+                        VStack(alignment: .trailing) {
+                            Text(String(format: "%i", bleManager.deviceMetaCount)).font(.title2).fontWeight(.bold)
+                            Text(String(format: "0x%08x", bleManager.deviceMetaCount)).font(.subheadline)
+                        }
                     }
                     HStack {
                         Button(action: {
@@ -132,26 +163,22 @@ struct ContentView: View {
                         }) {
                             Text("Read Local Time")
                         }.buttonStyle(YellowButton())
+
+                        Button(action: {
+                            bleManager.updateLocalTime()
+                        }) {
+                            Text("SYNC").foregroundColor(.white)
+                        }.padding()
                         Spacer()
                         VStack(alignment: .trailing) {
                             Text(String(format: "%i", bleManager.deviceLocalTime)).font(.title2).fontWeight(.bold)
                             Text(String(format: "0x%08x", bleManager.deviceLocalTime)).font(.subheadline)
                         }
-                        Button(action: {
-                            bleManager.updateLocalTime()
-                        }) {
-                            Image(systemName: "icloud.and.arrow.up.fill") // Use the SF Symbols library
-                                .font(.system(size: 24)) // Set the font size of the icon
-                        }.frame(width: 50).padding().foregroundColor(.white)
                     }
                 }
                 
                 VStack {
-                    Divider()
-                    HStack {
-                        Text("Other Actions")
-                            .font(.headline)
-                    }.padding()
+                    Divider().padding()
                     HStack {
                         Button(action: {
                             bleManager.dumpData(bleManager.LOGS_DUMP_KEY)
@@ -159,7 +186,8 @@ struct ContentView: View {
                             Text("Dump Log Data")
                         }.buttonStyle(BlueButton()).disabled(bleManager.buttonDisable)
                         Spacer()
-                        Text("n = \(bleManager.juxtaTextbox.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count)")
+                        // include header below (-1)
+                        Text("\(bleManager.juxtaTextbox.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count-1)")
                             .font(.footnote)
                         Spacer()
                         Button(action: {
@@ -200,7 +228,7 @@ struct ContentView: View {
                             bleManager.stopScan()
                         }) {
                             Text("Scanning...")
-                        }.padding().foregroundColor(.white)
+                        }.foregroundColor(.white).padding(15)
                     } else {
                         Button(action: {
                             bleManager.startScan()
