@@ -56,6 +56,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var copyTextboxString: String = ""
     @Published var seconds: UInt32 = 0
     @Published var buttonDisable: Bool = false
+    @Published var connectingPeripheralName: String = ""
+    @Published var syncBorder: CGFloat = 0
     
     public let RESET_DUMP_KEY: UInt8 = 0x00
     public let LOGS_DUMP_KEY: UInt8 = 0x11
@@ -211,6 +213,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
     
     func connect(to peripheral: CBPeripheral) {
+        connectingPeripheralName = peripheral.name ?? ""
         isConnecting = true
         stopScan()
         myCentral.connect(peripheral, options: nil)
@@ -272,6 +275,18 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             let data:Data = characteristic.value!
             let _ = data.withUnsafeBytes { pointer in
                 deviceLocalTime = pointer.load(as: UInt32.self)
+                let nowSeconds = UInt32(NSDate().timeIntervalSince1970)
+                let borderSize = 3.0
+                if deviceLocalTime == nowSeconds || deviceLocalTime == nowSeconds + 1 || deviceLocalTime == nowSeconds - 1 {
+                    jprint(">>> TIME DIFF: JUXTA & IOS EQUAL <<<")
+                    syncBorder = 0
+                } else if deviceLocalTime > nowSeconds {
+                    jprint(String(format: ">>> TIME DIFF: JUXTA BEHIND BY %is <<<", deviceLocalTime - nowSeconds))
+                    syncBorder = borderSize
+                } else {
+                    jprint(String(format: ">>> TIME DIFF: JUXTA BEHIND BY %is <<<", nowSeconds - deviceLocalTime))
+                    syncBorder = borderSize
+                }
             }
         }
         if characteristic == deviceTemperatureChar {
@@ -362,7 +377,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     for i in 0...dataBuffer.count-1 {
                         dataPos += 1
                         let data = dataBuffer[i]
-                        //                        print(String(format: "%i - %i - %02X", dataPos,dataPos % JUXTA_META_LENGTH, data))
+//                        print(String(format: "%i - %i - %02X", dataPos,dataPos % JUXTA_META_LENGTH, data))
                         switch dataPos % JUXTA_META_LENGTH {
                         case 1: // header
                             if String(format: "%02X", data) != UUIDString {
@@ -434,7 +449,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                         requestData() // ask for more
                     }
                 }
-                
                 resetDataTimer()
             }
         }
@@ -571,7 +585,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
     
     func getRSSIString(_ rssi: NSNumber) -> String {
-        return String(repeating: "•", count: Int(100 - abs(rssi.intValue)) / 5)
+        return String(repeating: "•", count: Int(127 - abs(rssi.intValue)) / 8)
     }
     
     func lsm303agr_from_fs_2g_hr_to_mg(_ lsb: Int16) -> Float {
