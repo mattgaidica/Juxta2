@@ -579,7 +579,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     func requestData() {
         if let peripheral = connectedPeripheral, let characteristic = commandChar {
-//            dataBuffer[0] = dumpType
             peripheral.writeValue(Data([dumpType]), for: characteristic, type: .withResponse)
         }
     }
