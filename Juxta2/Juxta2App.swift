@@ -71,6 +71,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var timerScan: Timer?
     private var timer1Hz: Timer?
     private var timerData: Timer?
+    private var connectTimeoutTimer: Timer?
     private var localTimeChar: CBCharacteristic?
     private var logCountChar: CBCharacteristic?
     private var advertiseModeChar: CBCharacteristic?
@@ -122,6 +123,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         isConnected = true
+        connectTimeoutTimer?.invalidate()
         isConnecting = false
         juxtaTextbox = ""
         deviceName = peripheral.name ?? "Unknown"
@@ -217,10 +219,18 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         isConnecting = true
         stopScan()
         myCentral.connect(peripheral, options: nil)
+        connectTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: false) { _ in
+            if !self.isConnected {
+                self.myCentral.cancelPeripheralConnection(peripheral)
+                self.disconnect()
+            }
+            self.connectTimeoutTimer?.invalidate()
+        }
     }
     
     func disconnect() {
         isConnected = false
+        isConnecting = false
         if let peripheral = self.connectedPeripheral {
             myCentral.cancelPeripheralConnection(peripheral)
         }
@@ -377,7 +387,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     for i in 0...dataBuffer.count-1 {
                         dataPos += 1
                         let data = dataBuffer[i]
-//                        print(String(format: "%i - %i - %02X", dataPos,dataPos % JUXTA_META_LENGTH, data))
+                        print(String(format: "%i - %i - %02X", dataPos,dataPos % JUXTA_META_LENGTH, data))
                         switch dataPos % JUXTA_META_LENGTH {
                         case 1: // header
                             if String(format: "%02X", data) != UUIDString {
