@@ -64,8 +64,16 @@ struct BigBlueButton: ButtonStyle {
 struct ContentView: View {
     @ObservedObject var bleManager = BLEManager()
     @State var doScan = false
-    @State private var isPulsing = false
-    @State var isOn: Bool = false
+    @State private var isConnectingPulsing = false
+    @State private var newSubject = ""
+    @State private var showSubjectModal = false
+    @State private var showAdvancedOptionsModal = false
+//    @State private var juxtaSettings: Binding<String>
+//        .sheet(isPresented: $showAdvancedOptionsModal) {
+//            AdvancedOptionsModalView(juxtaSettings: juxtaSettings) { newSettings in
+//                // do stuff
+//            }
+//        }
     
     let options: [Option] = [
         Option(value: 0, label: "Shelf"),
@@ -93,10 +101,10 @@ struct ContentView: View {
                 Text("CONNECTING\n\(bleManager.connectingPeripheralName)")
                     .font(.title)
                     .multilineTextAlignment(.center)
-                    .scaleEffect(isPulsing ? 1.25 : 1.0) // scale the text up and down
+                    .scaleEffect(isConnectingPulsing ? 1.25 : 1.0) // scale the text up and down
                     .onAppear {
                         withAnimation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) { // animate the scale effect
-                            isPulsing = true
+                            isConnectingPulsing = true
                         }
                     }
             }
@@ -124,7 +132,7 @@ struct ContentView: View {
                         Text("\(bleManager.deviceRSSI)dB").font(.title).fontWeight(.thin)
                     }.padding(EdgeInsets(top: 0, leading: 50, bottom: 0, trailing: 50))
                 }
-                Divider().padding()
+                Divider().padding(10)
                 VStack {
                     HStack {
                         Picker(selection: $bleManager.deviceAdvertisingMode, label: Text("Select Option"), content: {
@@ -137,8 +145,28 @@ struct ContentView: View {
                             bleManager.updateAdvertisingMode()
                         }.padding(.bottom, 10)
                     HStack {
-                        Toggle("Scan with magnet present?", isOn: $isOn)
-                    }.padding(EdgeInsets(top: 0, leading: 50, bottom: 10, trailing: 50))
+                        Button(action: {
+                            bleManager.readSubject()
+                        }) {
+                            Text("Read Subject")
+                        }.buttonStyle(YellowButton())
+                        Spacer()
+                        VStack(alignment: .trailing) {
+                            Text("\(bleManager.subject)").font(.title2).fontWeight(.bold)
+                            Text("Click to Edit").font(.caption).opacity(0.5)
+                        }.onTapGesture {
+                            self.showSubjectModal = true
+                        }
+                    }
+                    .sheet(isPresented: $showSubjectModal) {
+                        SubjectModalView(oldSubject: bleManager.subject, newSubject: $newSubject) { newSubjectText in
+                            showSubjectModal = false
+                            if newSubjectText != "" {
+                                bleManager.subject = newSubjectText
+                                bleManager.updateSubject()
+                            }
+                        }
+                    }
                     HStack {
                         Button(action: {
                             bleManager.readLogCount()
@@ -194,10 +222,18 @@ struct ContentView: View {
                             Text(String(format: "0x%08x", bleManager.deviceLocalTime)).font(.subheadline)
                         }
                     }
+                    HStack {
+                        Button(action: {
+//                            juxtaSettings.wrappedValue = bleManager.getJuxtaSettings()
+                            self.showAdvancedOptionsModal = true
+                        }) {
+                            Text("Advanced Options").font(.caption)
+                        }
+                    }.padding(EdgeInsets(top: 10, leading: 0, bottom: 0, trailing: 0))
                 }
                 
                 VStack {
-                    Divider().padding()
+                    Divider().padding(10)
                     HStack {
                         Button(action: {
                             bleManager.dumpData(bleManager.LOGS_DUMP_KEY)
@@ -304,6 +340,67 @@ struct NonEditableTextEditor: UIViewRepresentable {
     
     func updateUIView(_ uiView: UITextView, context: Context) {
         uiView.text = text
+    }
+}
+
+struct AdvancedOptionsModalView: View {
+//    @ObservedObject var bleManager = BLEManager()
+    @Binding var juxtaSettings: String
+    var completionHandler: (String) -> Void
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                
+            }
+                .navigationBarItems(trailing: Button("Save") {
+                    self.save()
+                })
+                .navigationTitle("Advanced Options")
+                .navigationBarItems(trailing: Button("Cancel") {
+                    self.dismiss()
+                }).padding()
+        }
+    }
+    
+    private func save() {
+//        self.completionHandler(self.newSettings)
+    }
+    private func dismiss() {
+        // do nothing
+    }
+}
+
+//@State var isOn: Bool = false
+//HStack {
+//    Toggle("Scan with magnet present?", isOn: $isOn)
+//}.padding(EdgeInsets(top: 0, leading: 50, bottom: 10, trailing: 50))
+
+struct SubjectModalView: View {
+    public var oldSubject: String // comes in but is not modified
+    @Binding var newSubject: String // binds to text field
+    var completionHandler: (String) -> Void
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                TextField(oldSubject, text: $newSubject).font(.title)
+            }.autocapitalization(.allCharacters).textContentType(.username)
+            .navigationBarItems(trailing: Button("Save") {
+                self.save()
+            })
+            .navigationTitle("Edit Subject")
+            .navigationBarItems(trailing: Button("Cancel") {
+                self.dismiss()
+            }).padding()
+        }
+    }
+    
+    private func save() {
+        self.completionHandler(self.newSubject)
+    }
+    private func dismiss() {
+        self.completionHandler("")
     }
 }
 

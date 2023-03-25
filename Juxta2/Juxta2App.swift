@@ -33,7 +33,6 @@ struct ActivityViewController: UIViewControllerRepresentable {
 }
 
 class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
-    
     var myCentral: CBCentralManager!
     @Published var isConnected: Bool = true
     @Published var isConnecting: Bool = false
@@ -58,12 +57,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var buttonDisable: Bool = false
     @Published var connectingPeripheralName: String = ""
     @Published var syncBorder: CGFloat = 0
+    @Published var subject: String = "SUBJECT"
     
     public let RESET_DUMP_KEY: UInt8 = 0x00
     public let LOGS_DUMP_KEY: UInt8 = 0x11
     public let META_DUMP_KEY: UInt8 = 0x22
     private let JUXTA_LOG_LENGTH: UInt32 = 13
-    private let JUXTA_META_LENGTH: UInt32 = 22
+    private let JUXTA_META_LENGTH: UInt32 = 7
+    public let DATA_TYPES = ["xl","mg","conn"]
     
     private var discoveredDevices = Set<CBPeripheral>()
     private var connectedPeripheral: CBPeripheral?
@@ -72,6 +73,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var timer1Hz: Timer?
     private var timerData: Timer?
     private var connectTimeoutTimer: Timer?
+    
     private var localTimeChar: CBCharacteristic?
     private var logCountChar: CBCharacteristic?
     private var advertiseModeChar: CBCharacteristic?
@@ -80,8 +82,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var metaCountChar: CBCharacteristic?
     private var deviceTemperatureChar: CBCharacteristic?
     private var commandChar: CBCharacteristic?
+    private var subjectChar: CBCharacteristic?
+    
     private var hexTimeData = [UInt8](repeating: 0, count: 4)
     private var dumpType: UInt8 = 0
+    
     // data vars
     private var data_logCount: UInt32 = 0
     private var data_scanAddr = [UInt8](repeating: 0, count: 6)
@@ -91,6 +96,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var data_xl = [Int16](repeating: 0, count: 3)
     private var data_mg = [Int16](repeating: 0, count: 3)
     private var dataBuffer = [UInt8](repeating: 0, count: 128)
+    private var subjectBuffer = [UInt8](repeating: 0, count: 16) // see JUXTAPROFILE_SUBJECT_LEN
     private var dataPos: UInt32 = 0
     
     override init() {
@@ -102,7 +108,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             self.seconds = UInt32(NSDate().timeIntervalSince1970)
         }
     }
-    
+
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == .poweredOn {
             isSwitchedOn = true
@@ -139,7 +145,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         guard let services = peripheral.services else { return }
         for service in services {
             if service.uuid == CBUUIDs.JuxtaService {
-                peripheral.discoverCharacteristics([CBUUIDs.JuxtaLogCountChar, CBUUIDs.JuxtaMetaCountChar, CBUUIDs.JuxtaLocalTimeChar, CBUUIDs.BatteryVoltageChar, CBUUIDs.DeviceTemperatureChar, CBUUIDs.JuxtaAdvertiseModeChar, CBUUIDs.JuxtaDataChar, CBUUIDs.JuxtaCommandChar], for: service)
+                peripheral.discoverCharacteristics([CBUUIDs.JuxtaLogCountChar, CBUUIDs.JuxtaMetaCountChar, CBUUIDs.JuxtaLocalTimeChar, CBUUIDs.BatteryVoltageChar, CBUUIDs.DeviceTemperatureChar, CBUUIDs.JuxtaAdvertiseModeChar, CBUUIDs.JuxtaDataChar, CBUUIDs.JuxtaCommandChar, CBUUIDs.JuxtaSubjectChar], for: service)
             }
             jprint("Service discovered: \(service.uuid)")
         }
@@ -186,6 +192,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 if characteristic.uuid == CBUUIDs.JuxtaCommandChar {
                     jprint("Command characteristic found")
                     commandChar = characteristic
+                }
+                if characteristic.uuid == CBUUIDs.JuxtaSubjectChar {
+                    jprint("Subject characteristic found")
+                    subjectChar = characteristic
+                    readSubject()
                 }
             }
         }
@@ -337,7 +348,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                             if String(format: "%02X", data) != UUIDString {
                                 forceExit = true
                             }
-                            break
                         case 2: // header
                             break
                         case 3:
@@ -393,60 +403,20 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                             if String(format: "%02X", data) != UUIDString {
                                 forceExit = true
                             }
-                            break
                         case 2: // header
-                            break
-                        case 3: // temp
-                            data_temp = data_temp | Int16(data) << 0
+                            nprint(String(format: "%@,", subject))
+                        case 3: // datatype
+                            nprint(String(format: "%@,", DATA_TYPES[Int(data)]))
                         case 4: // temp
-                            data_temp = data_temp | Int16(data) << 8
-                            nprint(String(format: "%1.0f,", lsm303agr_from_lsb_hr_to_celsius(data_temp) * (9/5) + 32))
-                        case 5: // voltage
-                            data_voltage = data_voltage | UInt16(data) << 0
-                        case 6: // voltage
-                            data_voltage = data_voltage | UInt16(data) << 8
-                            nprint(String(format: "%1.1f,", juxta_raw_voltage_to_actual(data_voltage)))
-                        case 7:
-                            data_xl[0] = data_xl[0] | Int16(data) << 0
-                        case 8:
-                            data_xl[0] = data_xl[0] | Int16(data) << 8
-                            nprint(String(format: "%1.0f,", lsm303agr_from_fs_2g_hr_to_mg(data_xl[0])))
-                        case 9:
-                            data_xl[1] = data_xl[1] | Int16(data) << 0
-                        case 10:
-                            data_xl[1] = data_xl[1] | Int16(data) << 8
-                            nprint(String(format: "%1.0f,", lsm303agr_from_fs_2g_hr_to_mg(data_xl[1])))
-                        case 11:
-                            data_xl[2] = data_xl[2] | Int16(data) << 0
-                        case 12:
-                            data_xl[2] = data_xl[2] | Int16(data) << 8
-                            nprint(String(format: "%1.0f,", lsm303agr_from_fs_2g_hr_to_mg(data_xl[2])))
-                        case 13:
-                            data_mg[0] = data_mg[0] | Int16(data) << 0
-                        case 14:
-                            data_mg[0] = data_mg[0] | Int16(data) << 8
-                            nprint(String(format: "%1.0f,", lsm303agr_from_lsb_to_mgauss(data_mg[0])))
-                        case 15:
-                            data_mg[1] = data_mg[1] | Int16(data) << 0
-                        case 16:
-                            data_mg[1] = data_mg[1] | Int16(data) << 8
-                            nprint(String(format: "%1.0f,", lsm303agr_from_lsb_to_mgauss(data_mg[1])))
-                        case 17:
-                            data_mg[2] = data_mg[2] | Int16(data) << 0
-                        case 18: // ie, 18
-                            data_mg[2] = data_mg[2] | Int16(data) << 8
-                            nprint(String(format: "%1.0f,", lsm303agr_from_lsb_to_mgauss(data_mg[2])))
-                        case 19:
                             data_localTime = data_localTime | UInt32(data) << 0
-                        case 20:
+                        case 5:
                             data_localTime = data_localTime | UInt32(data) << 8
-                        case 21:
+                        case 7:
                             data_localTime = data_localTime | UInt32(data) << 16
                         case 0: // ie, 22
                             data_localTime = data_localTime | UInt32(data) << 24
                             nprint(String(format: "%i\n", data_localTime))
                             resetVars()
-                            break
                         default:
                             break
                         }
@@ -460,6 +430,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     }
                 }
                 resetDataTimer()
+            }
+        }
+        if characteristic == subjectChar {
+            if let characteristicValue = characteristic.value {
+                let bytes = characteristicValue.filter { $0 != 0 }
+                subject = String(bytes: bytes, encoding: .utf8) ?? ""
             }
         }
     }
@@ -517,6 +493,24 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     }
     
+    func readSubject() {
+        if let peripheral = connectedPeripheral, let characteristic = subjectChar {
+            jprint("Reading subject")
+            peripheral.readValue(for: characteristic)
+        }
+    }
+    
+    func updateSubject() {
+        if let peripheral = connectedPeripheral, let characteristic = subjectChar {
+            jprint("Updating subject")
+            for (i, byte) in subject.utf8.prefix(subjectBuffer.count).enumerated() {
+                subjectBuffer[i] = byte
+            }
+            peripheral.writeValue(Data(subjectBuffer), for: characteristic, type: .withResponse)
+        }
+        readSubject()
+    }
+    
     func clearLogCount() {
         if let peripheral = connectedPeripheral, let characteristic = logCountChar {
             jprint("Clearing log count")
@@ -557,9 +551,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         buttonDisable = true
         dumpType = dt
         if dumpType == LOGS_DUMP_KEY {
-            juxtaTextbox = "mac,rssi,time\n"
+            juxtaTextbox = "subject,my_mac,their_mac,rssi,local_time\n"
         } else if dumpType == META_DUMP_KEY {
-            juxtaTextbox = "temp,volts,xlx,xly,xlz,mgx,mgy,mgz,time\n"
+            juxtaTextbox = "subject,data_type,local_time\n"
         }
         resetVars()
         dataPos = 0
@@ -591,6 +585,10 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         if let peripheral = connectedPeripheral, let characteristic = commandChar {
             peripheral.writeValue(Data([dumpType]), for: characteristic, type: .withResponse)
         }
+    }
+    
+    func getJuxtaSettings() -> String {
+        return "NA"
     }
     
     func getRSSIString(_ rssi: NSNumber) -> String {

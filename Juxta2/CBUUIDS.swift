@@ -18,4 +18,5 @@ struct CBUUIDs{
     public static let JuxtaAdvertiseModeChar = CBUUID.init(string: "FFF6")
     public static let JuxtaDataChar = CBUUID.init(string: "FFF7")
     public static let JuxtaCommandChar = CBUUID.init(string: "FFF8")
+    public static let JuxtaSubjectChar = CBUUID.init(string: "FFF9")
 }
