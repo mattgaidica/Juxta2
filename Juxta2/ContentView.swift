@@ -8,59 +8,6 @@
 import SwiftUI
 import CoreBluetooth
 
-struct WhiteButton: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .padding(10)
-            .background(.white)
-            .foregroundColor(.black)
-            .clipShape(Capsule())
-            .scaleEffect(configuration.isPressed ? 1.2 : 1)
-            .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
-    }
-}
-
-struct YellowButton: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .frame(width:150)
-            .padding(10)
-            .background(.yellow)
-            .foregroundColor(.black)
-            .clipShape(Capsule())
-            .scaleEffect(configuration.isPressed ? 1.2 : 1)
-            .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
-    }
-}
-
-struct BlueButton: ButtonStyle {
-    @ObservedObject var bleManager = BLEManager()
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .frame(width:130)
-            .padding(10)
-            .background(.blue)
-            .foregroundColor(.black)
-            .clipShape(Capsule())
-            .scaleEffect(configuration.isPressed ? 1.2 : 1)
-            .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
-    }
-}
-
-struct BigBlueButton: ButtonStyle {
-    @ObservedObject var bleManager = BLEManager()
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .padding(20)
-            .font(.title2)
-            .background(.blue)
-            .foregroundColor(.black)
-            .clipShape(Capsule())
-            .scaleEffect(configuration.isPressed ? 1.2 : 1)
-            .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
-    }
-}
-
 struct ContentView: View {
     @ObservedObject var bleManager = BLEManager()
     @State var doScan = false
@@ -68,7 +15,7 @@ struct ContentView: View {
     @State private var newSubject = ""
     @State private var showSubjectModal = false
     @State private var showAdvancedOptionsModal = false
-    @State private var newSettings = ""
+    @State private var newOptions = BLEManager.AdvancedOptionsStruct(duration: 0, modulo: 0, extevent: false, usemag: false)
     
     let options: [Option] = [
         Option(value: 0, label: "Shelf"),
@@ -137,7 +84,7 @@ struct ContentView: View {
                         })
                     }.pickerStyle(SegmentedPickerStyle())
                         .onChange(of: bleManager.deviceAdvertisingMode) { newValue in
-                            bleManager.updateAdvertisingMode()
+                            bleManager.updateAdvertisingMode(bleManager.advancedOptions)
                         }.padding(.bottom, 10)
                     HStack {
                         Button(action: {
@@ -148,7 +95,7 @@ struct ContentView: View {
                         Spacer()
                         VStack(alignment: .trailing) {
                             Text("\(bleManager.subject)").font(.title2).fontWeight(.bold)
-                            Text("Click to Edit Subject").font(.caption).opacity(0.5)
+                            Text("Click to Edit").font(.caption).opacity(0.5)
                         }.onTapGesture {
                             newSubject = bleManager.getSubject() // non-publishable string
                             self.showSubjectModal = true
@@ -158,11 +105,10 @@ struct ContentView: View {
                         // triggers update of newSubject before modal
                     }
                     .sheet(isPresented: $showSubjectModal) {
-                        SubjectModalView(newSubject: $newSubject) {
+                        SubjectModalView(newSubject: $newSubject) {doSave in
                             showSubjectModal = false
-                            if newSubject != "" {
-                                bleManager.subject = newSubject
-                                bleManager.updateSubject()
+                            if doSave {
+                                bleManager.updateSubject(newSubject)
                             }
                         }
                     }
@@ -223,17 +169,23 @@ struct ContentView: View {
                     }
                     HStack {
                         Button(action: {
-                            newSettings = bleManager.getSettings()
-                            self.showAdvancedOptionsModal = true
+                            newOptions = bleManager.getAdvancedOptions()
+                            showAdvancedOptionsModal = true
                         }) {
                             Text("Advanced Options").font(.caption)
                         }
                     }.padding(EdgeInsets(top: 10, leading: 0, bottom: 0, trailing: 0))
-//                    .sheet(isPresented: $showAdvancedOptionsModal) {
-//                        AdvancedOptionsModalView(juxtaSettings: $juxtaSettings) { _ in
-//                            // do stuff
-//                        }
-//                    }
+                    .onChange(of: showAdvancedOptionsModal) { _ in
+                        // This triggers an update when showSheet changes, even without the Text(variableToPass) in the view
+                    }
+                    .sheet(isPresented: $showAdvancedOptionsModal) {
+                        AdvancedOptionsModalView(newOptions: $newOptions) {doSave in
+                            self.showAdvancedOptionsModal = false
+                            if doSave {
+                                bleManager.updateAdvertisingMode(newOptions)
+                            }
+                        }
+                    }
                 }
                 
                 VStack {
@@ -296,29 +248,6 @@ struct ContentView: View {
                         }.buttonStyle(BigBlueButton())
                     }
                 }
-                
-                
-                // rm
-                HStack {
-                    Button(action: {
-                        newSettings = bleManager.getSettings()
-                        showAdvancedOptionsModal = true
-                    }) {
-                        Text("Advanced Options").font(.caption)
-                    }
-                }.padding(EdgeInsets(top: 10, leading: 0, bottom: 0, trailing: 0))
-                    .onChange(of: showAdvancedOptionsModal) { _ in
-                        // This triggers an update when showSheet changes, even without the Text(variableToPass) in the view
-                    }
-                    .sheet(isPresented: $showAdvancedOptionsModal) {
-                        AdvancedOptionsModalView(newSettings: $newSettings) {
-                            print(newSettings)
-                            self.showAdvancedOptionsModal = false
-                        }
-                    }
-                //rm
-                
-                
                 NavigationView {
                     List(bleManager.devices.sorted(by: { (peripheral1, peripheral2) -> Bool in
                         guard let rssi1 = bleManager.rssiValues[peripheral1.hash], let rssi2 = bleManager.rssiValues[peripheral2.hash] else {
@@ -370,34 +299,66 @@ struct NonEditableTextEditor: UIViewRepresentable {
 }
 
 struct AdvancedOptionsModalView: View {
-    @Binding var newSettings: String
-    var completionHandler: () -> Void
-
+    @Binding var newOptions: BLEManager.AdvancedOptionsStruct
+    var completionHandler: (Bool) -> Void
     // Add a new property to store the original value
-    @State private var originalVariable: String
+    @State private var originalVariable: BLEManager.AdvancedOptionsStruct
     
-    init(newSettings: Binding<String>, completionHandler: @escaping () -> Void) {
-        self._newSettings = newSettings
+    let durationDisplay = ["1", "2", "5", "10"]
+    let moduloDisplay = ["20", "30", "60", "3600"]
+
+    init(newOptions: Binding<BLEManager.AdvancedOptionsStruct>, completionHandler: @escaping (Bool) -> Void) {
+        self._newOptions = newOptions
         self.completionHandler = completionHandler
         // Initialize the original value to the current value
-        self._originalVariable = State(initialValue: newSettings.wrappedValue)
+        self._originalVariable = State(initialValue: newOptions.wrappedValue)
     }
     
     var body: some View {
         NavigationView {
-            
             Form {
-                TextField("", text: $newSettings).font(.title)
+                Section(header: Text("Scan/Advertise for...")) {
+                    Slider(value: $newOptions.duration, in: 0...3, step: 1.0)
+                    if newOptions.duration == 0 {
+                        Text("\(durationDisplay[Int(newOptions.duration)]) second")
+                    } else {
+                        Text("\(durationDisplay[Int(newOptions.duration)]) seconds")
+                    }
+                }
+                Section(header: Text("Every... (modulo time)")) {
+                    Slider(value: $newOptions.modulo, in: 0...3, step: 1.0)
+                    Text("\(moduloDisplay[Int(newOptions.modulo)]) seconds")
+                }
+                VStack {
+                    Toggle("Increase event sampling rate?", isOn: $newOptions.extevent)
+                    HStack {
+                        Text("From 60s to 10s for motion and magnet events.").font(.footnote).opacity(0.5).multilineTextAlignment(.leading)
+                        Spacer()
+                    }
+                }
+                VStack {
+                    Toggle("Scan with magnet present?", isOn: $newOptions.usemag)
+                    HStack {
+                        Text("Useful for animal-borne magnets.").font(.footnote).opacity(0.5).multilineTextAlignment(.leading)
+                        Spacer()
+                    }
+                }
             }
             .navigationTitle("Advanced Options")
             .navigationBarItems(trailing: Button("Save") {
-                completionHandler()
+                completionHandler(true)
             })
             .navigationBarItems(trailing: Button("Cancel") {
-                newSettings = originalVariable
-                completionHandler()
-            }).padding()
+                newOptions = originalVariable
+                completionHandler(false)
+            }
+            ).padding()
         }
+        Button(action: {
+            newOptions = BLEManager.AdvancedOptionsStruct(duration: 2.0, modulo: 2.0, extevent: false, usemag: false)
+        }) {
+            Text("Use Defaults")
+        }.buttonStyle(WhiteButton())
     }
 }
 
@@ -407,26 +368,94 @@ struct AdvancedOptionsModalView: View {
 //}.padding(EdgeInsets(top: 0, leading: 50, bottom: 10, trailing: 50))
 
 struct SubjectModalView: View {
-//    public var oldSubject: String // comes in but is not modified
     @Binding var newSubject: String // binds to text field
-    var completionHandler: () -> Void
+    @State private var originalVariable: String
+    var completionHandler: (Bool) -> Void
+    
+    init(newSubject: Binding<String>, completionHandler: @escaping (Bool) -> Void) {
+        self._newSubject = newSubject
+        self.completionHandler = completionHandler
+        // Initialize the original value to the current value
+        self._originalVariable = State(initialValue: newSubject.wrappedValue)
+    }
     
     var body: some View {
         NavigationView {
             Form {
                 TextField("SUBJECT", text: $newSubject).font(.title)
-                Text("Note: A *subject* is associated with a device but not every row of it's data. If changing subjects, it is advised to dump the data first and reset data counters.")
+                Text("Note: A *subject* is associated with a device but not every row of it's data in memory. It is only listed during log dumps for clear archiving.").font(.footnote).opacity(0.5)
             }.autocapitalization(.allCharacters).textContentType(.username)
             .navigationTitle("Edit Subject")
             .navigationBarItems(trailing: Button("Save") {
-                completionHandler()
+                if newSubject != "" && newSubject != originalVariable {
+                    completionHandler(true)
+                } else {
+                    cancelCompletion()
+                }
+                
             })
             .navigationBarItems(trailing: Button("Cancel") {
-                newSubject = ""
-                completionHandler()
+                cancelCompletion()
             }).padding()
         }
-        
+    }
+    
+    private func cancelCompletion() {
+        newSubject = originalVariable
+        completionHandler(false)
+    }
+}
+
+struct WhiteButton: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(10)
+            .background(.white)
+            .foregroundColor(.black)
+            .clipShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 1.2 : 1)
+            .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
+    }
+}
+
+struct YellowButton: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(width:150)
+            .padding(10)
+            .background(.yellow)
+            .foregroundColor(.black)
+            .clipShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 1.2 : 1)
+            .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
+    }
+}
+
+struct BlueButton: ButtonStyle {
+    @ObservedObject var bleManager = BLEManager()
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(width:130)
+            .padding(10)
+            .background(.blue)
+            .foregroundColor(.black)
+            .clipShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 1.2 : 1)
+            .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
+    }
+}
+
+struct BigBlueButton: ButtonStyle {
+    @ObservedObject var bleManager = BLEManager()
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(20)
+            .font(.title2)
+            .background(.blue)
+            .foregroundColor(.black)
+            .clipShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 1.2 : 1)
+            .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
     }
 }
 

@@ -33,6 +33,20 @@ struct ActivityViewController: UIViewControllerRepresentable {
 }
 
 class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+    public let RESET_DUMP_KEY: UInt8 = 0x00
+    public let LOGS_DUMP_KEY: UInt8 = 0x11
+    public let META_DUMP_KEY: UInt8 = 0x22
+    private let JUXTA_LOG_LENGTH: UInt32 = 13
+    private let JUXTA_META_LENGTH: UInt32 = 11
+    public let DATA_TYPES = ["xl","mg","conn","vbatt","deg_c"] // found in: juxtaDatatypes_t
+    
+    struct AdvancedOptionsStruct {
+        var duration: Float
+        var modulo: Float
+        var extevent: Bool
+        var usemag: Bool
+    }
+    
     var myCentral: CBCentralManager!
     @Published var isConnected: Bool = false
     @Published var isConnecting: Bool = false
@@ -59,13 +73,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var syncBorder: CGFloat = 0
     @Published var subject: String = "SUBJECT"
     
-    public let RESET_DUMP_KEY: UInt8 = 0x00
-    public let LOGS_DUMP_KEY: UInt8 = 0x11
-    public let META_DUMP_KEY: UInt8 = 0x22
-    private let JUXTA_LOG_LENGTH: UInt32 = 13
-    private let JUXTA_META_LENGTH: UInt32 = 11
-    public let DATA_TYPES = ["xl","mg","conn","vbatt","deg_c"] // found in: juxtaDatatypes_t
-    
     private var discoveredDevices = Set<CBPeripheral>()
     private var connectedPeripheral: CBPeripheral?
     private var timerRSSI: Timer?
@@ -86,6 +93,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     private var hexTimeData = [UInt8](repeating: 0, count: 4)
     private var dumpType: UInt8 = 0
+    public var advancedOptions = AdvancedOptionsStruct(duration: 0.0, modulo: 0.0, extevent: false, usemag: false)
     
     // data vars
     private var data_logCount: UInt32 = 0
@@ -343,7 +351,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
         if characteristic == advertiseModeChar {
             if let characteristicValue = characteristic.value {
-                deviceAdvertisingMode = characteristicValue[0]
+                deviceAdvertisingMode = 0b00000011 & characteristicValue[0]
+                advancedOptions.duration = Float((0b00001100 & characteristicValue[0]) >> 2)
+                advancedOptions.modulo = Float((0b00110000 & characteristicValue[0]) >> 4)
+                let extendEvents: Bool = (((0b01000000 & characteristicValue[0]) >> 6) != 0)
+                advancedOptions.extevent = extendEvents
+                let useMag: Bool = (((0b10000000 & characteristicValue[0]) >> 7) != 0)
+                advancedOptions.usemag = useMag
             }
         }
         if characteristic == dataChar {
@@ -515,10 +529,19 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     }
     
-    func updateAdvertisingMode() {
+    func updateAdvertisingMode(_ newOptions: AdvancedOptionsStruct?) {
+        advancedOptions = newOptions ?? AdvancedOptionsStruct(duration: 0.0, modulo: 0.0, extevent: false, usemag: false)
         if let peripheral = connectedPeripheral, let characteristic = advertiseModeChar {
             jprint("Updating advertising mode")
-            let data = Data([deviceAdvertisingMode])
+            var juxtaModeByte: UInt8 = 0
+            juxtaModeByte |= 0b00000011 & deviceAdvertisingMode
+            juxtaModeByte |= 0b00001100 & UInt8(advancedOptions.duration) << 2
+            juxtaModeByte |= 0b00110000 & UInt8(advancedOptions.modulo) << 4
+            let extendEvents: UInt8 = advancedOptions.extevent ? 1 : 0
+            juxtaModeByte |= 0b01000000 & extendEvents << 6
+            let useMag: UInt8 = advancedOptions.usemag ? 1 : 0
+            juxtaModeByte |= 0b10000000 & useMag << 7
+            let data = Data([juxtaModeByte])
             peripheral.writeValue(data, for: characteristic, type: .withResponse)
         }
     }
@@ -530,7 +553,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     }
     
-    func updateSubject() {
+    func updateSubject(_ newSubject: String?) {
+        // option to update here
+        if let newSubject = newSubject {
+            subject = newSubject
+        }
         if let peripheral = connectedPeripheral, let characteristic = subjectChar {
             jprint("Updating subject")
             for (i, byte) in subject.utf8.prefix(subjectBuffer.count).enumerated() {
@@ -618,8 +645,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     }
     
-    func getSettings() -> String {
-        return "NA"
+    func getAdvancedOptions() -> AdvancedOptionsStruct {
+        return advancedOptions
     }
     
     func getSubject() -> String {
