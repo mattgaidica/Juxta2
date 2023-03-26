@@ -34,7 +34,7 @@ struct ActivityViewController: UIViewControllerRepresentable {
 
 class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     var myCentral: CBCentralManager!
-    @Published var isConnected: Bool = true
+    @Published var isConnected: Bool = false
     @Published var isConnecting: Bool = false
     @Published var isSwitchedOn = false
     @Published var devices: [CBPeripheral] = []
@@ -63,8 +63,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     public let LOGS_DUMP_KEY: UInt8 = 0x11
     public let META_DUMP_KEY: UInt8 = 0x22
     private let JUXTA_LOG_LENGTH: UInt32 = 13
-    private let JUXTA_META_LENGTH: UInt32 = 7
-    public let DATA_TYPES = ["xl","mg","conn"]
+    private let JUXTA_META_LENGTH: UInt32 = 11
+    public let DATA_TYPES = ["xl","mg","conn","vbatt","deg_c"] // found in: juxtaDatatypes_t
     
     private var discoveredDevices = Set<CBPeripheral>()
     private var connectedPeripheral: CBPeripheral?
@@ -91,13 +91,15 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var data_logCount: UInt32 = 0
     private var data_scanAddr = [UInt8](repeating: 0, count: 6)
     private var data_localTime: UInt32 = 0
-    private var data_temp: Int16 = 0
-    private var data_voltage: UInt16 = 0
-    private var data_xl = [Int16](repeating: 0, count: 3)
-    private var data_mg = [Int16](repeating: 0, count: 3)
+//    private var data_temp: Int16 = 0
+//    private var data_voltage: UInt16 = 0
+//    private var data_xl = [Int16](repeating: 0, count: 3)
+//    private var data_mg = [Int16](repeating: 0, count: 3)
+    private var data_meta = [UInt8](repeating: 0, count: 4)
     private var dataBuffer = [UInt8](repeating: 0, count: 128)
     private var subjectBuffer = [UInt8](repeating: 0, count: 16) // see JUXTAPROFILE_SUBJECT_LEN
     private var dataPos: UInt32 = 0
+    private var myMAC: String = ""
     
     override init() {
         super.init()
@@ -133,6 +135,19 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         isConnecting = false
         juxtaTextbox = ""
         deviceName = peripheral.name ?? "Unknown"
+        let stringParts = deviceName.split(separator: "_")
+        if stringParts.count > 1 {
+            let splitMACAddress = String(stringParts[1])
+            myMAC = ""
+            for (index, char) in splitMACAddress.enumerated() {
+                if index % 2 == 0 && index != 0 {
+                    myMAC += ":"
+                }
+                myMAC += String(char)
+            }
+        } else {
+            myMAC = "unknown"
+        }
         connectedPeripheral = peripheral
         self.timerRSSI = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
             peripheral.readRSSI()
@@ -349,7 +364,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                                 forceExit = true
                             }
                         case 2: // header
-                            break
+                            nprint(String(format:"%@,", myMAC))
                         case 3:
                             data_scanAddr[5] = data
                         case 4:
@@ -362,6 +377,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                             data_scanAddr[1] = data
                         case 8:
                             data_scanAddr[0] = data
+                            // optional: rm ":" join, but it might be interpreted as int on import
                             nprint(data_scanAddr.map { String(format: "%X", $0) }.joined(separator: ":") + ",");
                         case 9:
                             var RSSIInt8: Int8 = 0
@@ -407,11 +423,25 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                             nprint(String(format: "%@,", subject))
                         case 3: // datatype
                             nprint(String(format: "%@,", DATA_TYPES[Int(data)]))
-                        case 4: // temp
-                            data_localTime = data_localTime | UInt32(data) << 0
+                        case 4:
+                            data_meta[0] = data
                         case 5:
-                            data_localTime = data_localTime | UInt32(data) << 8
+                            data_meta[1] = data
+                        case 6:
+                            data_meta[2] = data
                         case 7:
+                            data_meta[3] = data
+                            var floatValue: Float = 0
+                            // Copy the 4 bytes into the float variable
+                            withUnsafeMutableBytes(of: &floatValue) { floatBytes in
+                                floatBytes.copyBytes(from: data_meta)
+                            }
+                            nprint(String(format: "%1.2f,", floatValue))
+                        case 8: // time
+                            data_localTime = data_localTime | UInt32(data) << 0
+                        case 9:
+                            data_localTime = data_localTime | UInt32(data) << 8
+                        case 10:
                             data_localTime = data_localTime | UInt32(data) << 16
                         case 0: // ie, 22
                             data_localTime = data_localTime | UInt32(data) << 24
@@ -553,7 +583,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         if dumpType == LOGS_DUMP_KEY {
             juxtaTextbox = "subject,my_mac,their_mac,rssi,local_time\n"
         } else if dumpType == META_DUMP_KEY {
-            juxtaTextbox = "subject,data_type,local_time\n"
+            juxtaTextbox = "subject,data_type,data_value,local_time\n"
         }
         resetVars()
         dataPos = 0
@@ -575,10 +605,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         data_logCount = 0
         data_scanAddr = [UInt8](repeating: 0, count: 6)
         data_localTime = 0
-        data_temp = 0
-        data_voltage = 0
-        data_xl = [Int16](repeating: 0, count: 3)
-        data_mg = [Int16](repeating: 0, count: 3)
+//        data_temp = 0
+//        data_voltage = 0
+//        data_xl = [Int16](repeating: 0, count: 3)
+//        data_mg = [Int16](repeating: 0, count: 3)
+        data_meta = [UInt8](repeating: 0, count: 4)
     }
     
     func requestData() {
@@ -587,10 +618,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     }
     
-    func getJuxtaSettings() -> String {
+    func getSettings() -> String {
         return "NA"
     }
     
+    func getSubject() -> String {
+        return subject
+    }
+
     func getRSSIString(_ rssi: NSNumber) -> String {
         return String(repeating: "•", count: Int(127 - abs(rssi.intValue)) / 8)
     }
@@ -603,9 +638,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         return (Float(lsb) * 250) / 100 / 1000
     }
     
-    func lsm303agr_from_lsb_hr_to_celsius(_ lsb: Int16) -> Float {
-        ((Float(data_temp) / 64.0) / 4.0) + 25.0
-    }
+//    func lsm303agr_from_lsb_hr_to_celsius(_ lsb: Int16) -> Float {
+//        ((Float(data_temp) / 64.0) / 4.0) + 25.0
+//    }
     
     func lsm303agr_from_lsb_to_mgauss(_ lsb: Int16) -> Float {
         return Float(lsb) * 1.5

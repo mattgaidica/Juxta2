@@ -68,12 +68,7 @@ struct ContentView: View {
     @State private var newSubject = ""
     @State private var showSubjectModal = false
     @State private var showAdvancedOptionsModal = false
-//    @State private var juxtaSettings: Binding<String>
-//        .sheet(isPresented: $showAdvancedOptionsModal) {
-//            AdvancedOptionsModalView(juxtaSettings: juxtaSettings) { newSettings in
-//                // do stuff
-//            }
-//        }
+    @State private var newSettings = ""
     
     let options: [Option] = [
         Option(value: 0, label: "Shelf"),
@@ -153,16 +148,20 @@ struct ContentView: View {
                         Spacer()
                         VStack(alignment: .trailing) {
                             Text("\(bleManager.subject)").font(.title2).fontWeight(.bold)
-                            Text("Click to Edit").font(.caption).opacity(0.5)
+                            Text("Click to Edit Subject").font(.caption).opacity(0.5)
                         }.onTapGesture {
+                            newSubject = bleManager.getSubject() // non-publishable string
                             self.showSubjectModal = true
                         }
                     }
+                    .onChange(of: showSubjectModal) { _ in
+                        // triggers update of newSubject before modal
+                    }
                     .sheet(isPresented: $showSubjectModal) {
-                        SubjectModalView(oldSubject: bleManager.subject, newSubject: $newSubject) { newSubjectText in
+                        SubjectModalView(newSubject: $newSubject) {
                             showSubjectModal = false
-                            if newSubjectText != "" {
-                                bleManager.subject = newSubjectText
+                            if newSubject != "" {
+                                bleManager.subject = newSubject
                                 bleManager.updateSubject()
                             }
                         }
@@ -224,12 +223,17 @@ struct ContentView: View {
                     }
                     HStack {
                         Button(action: {
-//                            juxtaSettings.wrappedValue = bleManager.getJuxtaSettings()
+                            newSettings = bleManager.getSettings()
                             self.showAdvancedOptionsModal = true
                         }) {
                             Text("Advanced Options").font(.caption)
                         }
                     }.padding(EdgeInsets(top: 10, leading: 0, bottom: 0, trailing: 0))
+//                    .sheet(isPresented: $showAdvancedOptionsModal) {
+//                        AdvancedOptionsModalView(juxtaSettings: $juxtaSettings) { _ in
+//                            // do stuff
+//                        }
+//                    }
                 }
                 
                 VStack {
@@ -293,6 +297,28 @@ struct ContentView: View {
                     }
                 }
                 
+                
+                // rm
+                HStack {
+                    Button(action: {
+                        newSettings = bleManager.getSettings()
+                        showAdvancedOptionsModal = true
+                    }) {
+                        Text("Advanced Options").font(.caption)
+                    }
+                }.padding(EdgeInsets(top: 10, leading: 0, bottom: 0, trailing: 0))
+                    .onChange(of: showAdvancedOptionsModal) { _ in
+                        // This triggers an update when showSheet changes, even without the Text(variableToPass) in the view
+                    }
+                    .sheet(isPresented: $showAdvancedOptionsModal) {
+                        AdvancedOptionsModalView(newSettings: $newSettings) {
+                            print(newSettings)
+                            self.showAdvancedOptionsModal = false
+                        }
+                    }
+                //rm
+                
+                
                 NavigationView {
                     List(bleManager.devices.sorted(by: { (peripheral1, peripheral2) -> Bool in
                         guard let rssi1 = bleManager.rssiValues[peripheral1.hash], let rssi2 = bleManager.rssiValues[peripheral2.hash] else {
@@ -344,30 +370,34 @@ struct NonEditableTextEditor: UIViewRepresentable {
 }
 
 struct AdvancedOptionsModalView: View {
-//    @ObservedObject var bleManager = BLEManager()
-    @Binding var juxtaSettings: String
-    var completionHandler: (String) -> Void
+    @Binding var newSettings: String
+    var completionHandler: () -> Void
+
+    // Add a new property to store the original value
+    @State private var originalVariable: String
+    
+    init(newSettings: Binding<String>, completionHandler: @escaping () -> Void) {
+        self._newSettings = newSettings
+        self.completionHandler = completionHandler
+        // Initialize the original value to the current value
+        self._originalVariable = State(initialValue: newSettings.wrappedValue)
+    }
     
     var body: some View {
         NavigationView {
+            
             Form {
-                
+                TextField("", text: $newSettings).font(.title)
             }
-                .navigationBarItems(trailing: Button("Save") {
-                    self.save()
-                })
-                .navigationTitle("Advanced Options")
-                .navigationBarItems(trailing: Button("Cancel") {
-                    self.dismiss()
-                }).padding()
+            .navigationTitle("Advanced Options")
+            .navigationBarItems(trailing: Button("Save") {
+                completionHandler()
+            })
+            .navigationBarItems(trailing: Button("Cancel") {
+                newSettings = originalVariable
+                completionHandler()
+            }).padding()
         }
-    }
-    
-    private func save() {
-//        self.completionHandler(self.newSettings)
-    }
-    private func dismiss() {
-        // do nothing
     }
 }
 
@@ -377,30 +407,26 @@ struct AdvancedOptionsModalView: View {
 //}.padding(EdgeInsets(top: 0, leading: 50, bottom: 10, trailing: 50))
 
 struct SubjectModalView: View {
-    public var oldSubject: String // comes in but is not modified
+//    public var oldSubject: String // comes in but is not modified
     @Binding var newSubject: String // binds to text field
-    var completionHandler: (String) -> Void
+    var completionHandler: () -> Void
     
     var body: some View {
         NavigationView {
             Form {
-                TextField(oldSubject, text: $newSubject).font(.title)
+                TextField("SUBJECT", text: $newSubject).font(.title)
+                Text("Note: A *subject* is associated with a device but not every row of it's data. If changing subjects, it is advised to dump the data first and reset data counters.")
             }.autocapitalization(.allCharacters).textContentType(.username)
-            .navigationBarItems(trailing: Button("Save") {
-                self.save()
-            })
             .navigationTitle("Edit Subject")
+            .navigationBarItems(trailing: Button("Save") {
+                completionHandler()
+            })
             .navigationBarItems(trailing: Button("Cancel") {
-                self.dismiss()
+                newSubject = ""
+                completionHandler()
             }).padding()
         }
-    }
-    
-    private func save() {
-        self.completionHandler(self.newSubject)
-    }
-    private func dismiss() {
-        self.completionHandler("")
+        
     }
 }
 
