@@ -608,7 +608,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         buttonDisable = true
         dumpType = dt
         if dumpType == LOGS_DUMP_KEY {
-            juxtaTextbox = "subject,my_mac,their_mac,rssi,local_time\n"
+            juxtaTextbox = "my_mac,their_mac,rssi,local_time\n"
         } else if dumpType == META_DUMP_KEY {
             juxtaTextbox = "subject,data_type,data_value,local_time\n"
         }
