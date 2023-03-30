@@ -33,6 +33,13 @@ struct ActivityViewController: UIViewControllerRepresentable {
 }
 
 class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+    var myCentral: CBCentralManager!
+    @Published var isConnected: Bool = true
+    @Published var isConnecting: Bool = false
+    @Published var isSwitchedOn = false
+    @Published var devices: [CBPeripheral] = []
+    @Published var rssiValues: [Int: NSNumber] = [:]
+    
     public let RESET_DUMP_KEY: UInt8 = 0x00
     public let LOGS_DUMP_KEY: UInt8 = 0x11
     public let META_DUMP_KEY: UInt8 = 0x22
@@ -46,13 +53,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         var extevent: Bool
         var usemag: Bool
     }
-    
-    var myCentral: CBCentralManager!
-    @Published var isConnected: Bool = false
-    @Published var isConnecting: Bool = false
-    @Published var isSwitchedOn = false
-    @Published var devices: [CBPeripheral] = []
-    @Published var rssiValues: [Int: NSNumber] = [:]
     
     @Published var deviceName: String = "JX_XXXXXXXXXXXX"
     @Published var deviceRSSI: Int = 0
@@ -72,6 +72,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var connectingPeripheralName: String = ""
     @Published var syncBorder: CGFloat = 0
     @Published var subject: String = "SUBJECT"
+    @Published var version: Float = 0.0
     
     private var discoveredDevices = Set<CBPeripheral>()
     private var connectedPeripheral: CBPeripheral?
@@ -142,7 +143,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         connectTimeoutTimer?.invalidate()
         isConnecting = false
         juxtaTextbox = ""
-        deviceName = peripheral.name ?? "Unknown"
+        deviceName = peripheral.name ?? "JX_X"
         let stringParts = deviceName.split(separator: "_")
         if stringParts.count > 1 {
             let splitMACAddress = String(stringParts[1])
@@ -154,7 +155,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 myMAC += String(char)
             }
         } else {
-            myMAC = "unknown"
+            myMAC = "X"
         }
         connectedPeripheral = peripheral
         self.timerRSSI = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
@@ -215,6 +216,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 if characteristic.uuid == CBUUIDs.JuxtaCommandChar {
                     jprint("Command characteristic found")
                     commandChar = characteristic
+                    readCommand()
                 }
                 if characteristic.uuid == CBUUIDs.JuxtaSubjectChar {
                     jprint("Subject characteristic found")
@@ -358,6 +360,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 advancedOptions.extevent = extendEvents
                 let useMag: Bool = (((0b10000000 & characteristicValue[0]) >> 7) != 0)
                 advancedOptions.usemag = useMag
+            }
+        }
+        if characteristic == commandChar {
+            if let characteristicValue = characteristic.value {
+                let versionInt = (0b11110000 & characteristicValue[0]) >> 4
+                let versionFrac = (0b00001111 & characteristicValue[0])
+                version = Float(versionInt) + (Float(versionFrac) / 10)
             }
         }
         if characteristic == dataChar {
@@ -525,6 +534,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     func readAdvertisingMode() {
         if let peripheral = connectedPeripheral, let characteristic = advertiseModeChar {
             jprint("Reading advertising mode")
+            peripheral.readValue(for: characteristic)
+        }
+    }
+    
+    func readCommand() {
+        if let peripheral = connectedPeripheral, let characteristic = commandChar {
+            jprint("Reading command/versio")
             peripheral.readValue(for: characteristic)
         }
     }

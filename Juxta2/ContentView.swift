@@ -65,14 +65,14 @@ struct ContentView: View {
                         }.buttonStyle(WhiteButton())
                     }
                     HStack {
-                            Text(String(format: "%.2fV", bleManager.deviceBatteryVoltage))
-                            .font(.title)
-                            .fontWeight(.thin)
+                        Text(String(format: "v%.1f", bleManager.version))
                         Spacer()
-                        Text(String(format: "%.0f°F", bleManager.deviceTemperature)).font(.title).fontWeight(.thin)
+                        Text(String(format: "%.2fV", bleManager.deviceBatteryVoltage))
                         Spacer()
-                        Text("\(bleManager.deviceRSSI)dB").font(.title).fontWeight(.thin)
-                    }.padding(EdgeInsets(top: 0, leading: 50, bottom: 0, trailing: 50))
+                        Text(String(format: "%.0f°F", bleManager.deviceTemperature))
+                        Spacer()
+                        Text("\(bleManager.deviceRSSI)dB")
+                    }.padding(EdgeInsets(top: 0, leading: 10, bottom: 0, trailing: 10)).font(.title).fontWeight(.thin)
                 }
                 Divider().padding(10)
                 VStack {
@@ -261,7 +261,7 @@ struct ContentView: View {
                             doScan = false
                         }) {
                             HStack {
-                                Text(peripheral.name ?? "Unknown")
+                                Text(peripheral.name ?? "JX_X")
                                 Spacer()
                                 Text(bleManager.getRSSIString(rssi)).foregroundColor(.green).fontWeight(.black)
                                 Text("\(rssi) dB").frame(width:50)
