@@ -73,6 +73,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var syncBorder: CGFloat = 0
     @Published var subject: String = "SUBJECT"
     @Published var version: Float = 0.0
+    @Published var softwareVersion: String = ""
     
     private var discoveredDevices = Set<CBPeripheral>()
     private var connectedPeripheral: CBPeripheral?
@@ -91,6 +92,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var deviceTemperatureChar: CBCharacteristic?
     private var commandChar: CBCharacteristic?
     private var subjectChar: CBCharacteristic?
+    private var softwareVersionChar: CBCharacteristic?
     
     private var hexTimeData = [UInt8](repeating: 0, count: 4)
     private var dumpType: UInt8 = 0
@@ -171,6 +173,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             if service.uuid == CBUUIDs.JuxtaService {
                 peripheral.discoverCharacteristics([CBUUIDs.JuxtaLogCountChar, CBUUIDs.JuxtaMetaCountChar, CBUUIDs.JuxtaLocalTimeChar, CBUUIDs.BatteryVoltageChar, CBUUIDs.DeviceTemperatureChar, CBUUIDs.JuxtaAdvertiseModeChar, CBUUIDs.JuxtaDataChar, CBUUIDs.JuxtaCommandChar, CBUUIDs.JuxtaSubjectChar], for: service)
             }
+            if service.uuid == CBUUIDs.InfoService {
+                peripheral.discoverCharacteristics([CBUUIDs.InfoSoftwareChar], for: service)
+            }
             jprint("Service discovered: \(service.uuid)")
         }
     }
@@ -222,6 +227,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     jprint("Subject characteristic found")
                     subjectChar = characteristic
                     readSubject()
+                }
+                if characteristic.uuid == CBUUIDs.InfoSoftwareChar {
+                    jprint("Software version characteristic found")
+                    softwareVersionChar = characteristic
+                    readSoftwareVersion()
                 }
             }
         }
@@ -362,13 +372,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 advancedOptions.usemag = useMag
             }
         }
-        if characteristic == commandChar {
-            if let characteristicValue = characteristic.value {
-                let versionInt = (0b11110000 & characteristicValue[0]) >> 4
-                let versionFrac = (0b00001111 & characteristicValue[0])
-                version = Float(versionInt) + (Float(versionFrac) / 10)
-            }
-        }
+//        if characteristic == commandChar {
+//            if let characteristicValue = characteristic.value {
+//                let versionInt = (0b11110000 & characteristicValue[0]) >> 4
+//                let versionFrac = (0b00001111 & characteristicValue[0])
+//                version = Float(versionInt) + (Float(versionFrac) / 10)
+//            }
+//        }
         if characteristic == dataChar {
             guard let characteristicValue = characteristic.value else { return }
             if characteristicValue.count == dataBuffer.count {
@@ -491,6 +501,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 subject = String(bytes: bytes, encoding: .utf8) ?? ""
             }
         }
+        if characteristic == softwareVersionChar {
+            if let characteristicValue = characteristic.value {
+                let bytes = characteristicValue.filter { $0 != 0 }
+                softwareVersion = String(bytes: bytes, encoding: .utf8) ?? ""
+                jprint(softwareVersion)
+            }
+        }
     }
     
     func getDateStr() -> String {
@@ -540,7 +557,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     func readCommand() {
         if let peripheral = connectedPeripheral, let characteristic = commandChar {
-            jprint("Reading command/versio")
+            jprint("Reading command")
+            peripheral.readValue(for: characteristic)
+        }
+    }
+    
+    func readSoftwareVersion() {
+        if let peripheral = connectedPeripheral, let characteristic = softwareVersionChar {
+            jprint("Reading software version")
             peripheral.readValue(for: characteristic)
         }
     }

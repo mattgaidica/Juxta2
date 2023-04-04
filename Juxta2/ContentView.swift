@@ -65,7 +65,7 @@ struct ContentView: View {
                         }.buttonStyle(WhiteButton())
                     }
                     HStack {
-                        Text(String(format: "v%.1f", bleManager.version))
+                        Text(bleManager.softwareVersion)
                         Spacer()
                         Text(String(format: "%.2fV", bleManager.deviceBatteryVoltage))
                         Spacer()
