@@ -17,7 +17,7 @@ struct ContentView: View {
     @State private var showAdvancedOptionsModal = false
     @State private var newOptions = BLEManager.AdvancedOptionsStruct(duration: 0, modulo: 0, extevent: false, usemag: false)
     
-    let options: [Option] = [
+    let juxtaModes: [Option] = [
         Option(value: 0, label: "Shelf"),
         Option(value: 1, label: "Interval"),
         Option(value: 2, label: "Motion"),
@@ -78,8 +78,8 @@ struct ContentView: View {
                 VStack {
                     HStack {
                         Picker(selection: $bleManager.deviceAdvertisingMode, label: Text("Select Option"), content: {
-                            ForEach(options) { option in
-                                Text(option.label).tag(option.value)
+                            ForEach(juxtaModes) { mode in
+                                Text(mode.label).tag(mode.value)
                             }
                         })
                     }.pickerStyle(SegmentedPickerStyle())
@@ -179,12 +179,12 @@ struct ContentView: View {
                         // This triggers an update when showSheet changes, even without the Text(variableToPass) in the view
                     }
                     .sheet(isPresented: $showAdvancedOptionsModal) {
-                        AdvancedOptionsModalView(newOptions: $newOptions) {doSave in
+                        AdvancedOptionsModalView(newOptions: $newOptions, juxtaMode: juxtaModes[Int(bleManager.deviceAdvertisingMode)].label, completionHandler: { doSave in
                             self.showAdvancedOptionsModal = false
                             if doSave {
                                 bleManager.updateAdvertisingMode(newOptions)
                             }
-                        }
+                        })
                     }
                 }
                 
@@ -300,6 +300,7 @@ struct NonEditableTextEditor: UIViewRepresentable {
 
 struct AdvancedOptionsModalView: View {
     @Binding var newOptions: BLEManager.AdvancedOptionsStruct
+    var juxtaMode: String
     var completionHandler: (Bool) -> Void
     // Add a new property to store the original value
     @State private var originalVariable: BLEManager.AdvancedOptionsStruct
@@ -307,8 +308,9 @@ struct AdvancedOptionsModalView: View {
     let durationDisplay = ["1", "2", "5", "10"]
     let moduloDisplay = ["20", "30", "60", "3600"]
 
-    init(newOptions: Binding<BLEManager.AdvancedOptionsStruct>, completionHandler: @escaping (Bool) -> Void) {
+    init(newOptions: Binding<BLEManager.AdvancedOptionsStruct>, juxtaMode: String, completionHandler: @escaping (Bool) -> Void) {
         self._newOptions = newOptions
+        self.juxtaMode = juxtaMode
         self.completionHandler = completionHandler
         // Initialize the original value to the current value
         self._originalVariable = State(initialValue: newOptions.wrappedValue)
@@ -317,34 +319,50 @@ struct AdvancedOptionsModalView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Scan/Advertise for...")) {
-                    Slider(value: $newOptions.duration, in: 0...3, step: 1.0)
-                    if newOptions.duration == 0 {
-                        Text("\(durationDisplay[Int(newOptions.duration)]) second")
-                    } else {
-                        Text("\(durationDisplay[Int(newOptions.duration)]) seconds")
+                HStack {
+                    Text("Currently in ")
+                    Text(juxtaMode)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Color(UIColor.systemGray5))
+                        .cornerRadius(10)
+                        .pickerStyle(.wheel)
+                    Text(" Mode")
+                }.listRowBackground(Color.clear).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center).font(.title)
+                Section(header: Text("Interval Settings")) {
+                    VStack(alignment: .leading) {
+                        Text("Scan/Advertise for...").font(.footnote)
+                        Slider(value: $newOptions.duration, in: 0...3, step: 1.0)
+                        if newOptions.duration == 0 {
+                            Text("\(durationDisplay[Int(newOptions.duration)]) second")
+                        } else {
+                            Text("\(durationDisplay[Int(newOptions.duration)]) seconds")
+                        }
+                    }
+                    VStack(alignment: .leading) {
+                        Text("Every... (modulo time)").font(.footnote)
+                        Slider(value: $newOptions.modulo, in: 0...3, step: 1.0)
+                        Text("\(moduloDisplay[Int(newOptions.modulo)]) seconds")
                     }
                 }
-                Section(header: Text("Every... (modulo time)")) {
-                    Slider(value: $newOptions.modulo, in: 0...3, step: 1.0)
-                    Text("\(moduloDisplay[Int(newOptions.modulo)]) seconds")
-                }
-                VStack {
-                    Toggle("Increase event sampling rate?", isOn: $newOptions.extevent)
-                    HStack {
-                        Text("From 60s to 10s for motion and magnet events.").font(.footnote).opacity(0.5).multilineTextAlignment(.leading)
-                        Spacer()
+                Section {
+                    VStack {
+                        Toggle("Increase event logging rate?", isOn: $newOptions.extevent)
+                        HStack {
+                            Text("From a maximum of 60s to 10s (eg, motion).").font(.footnote).opacity(0.5).multilineTextAlignment(.leading)
+                            Spacer()
+                        }
                     }
                 }
-                VStack {
-                    Toggle("Scan with magnet present?", isOn: $newOptions.usemag)
-                    HStack {
-                        Text("Useful for animal-borne magnets.").font(.footnote).opacity(0.5).multilineTextAlignment(.leading)
-                        Spacer()
-                    }
-                }
+                Section {
+                    Text("__Shelf__ mode only advertises when the device is pointing skywards. It keeps time, but does not log anything.").padding(0)
+                    Text("__Interval__ mode uses the interval settings turn on scanning and advertising at a set rate. It also logs motion events.")
+                    Text("__Motion__ mode only logs motion events (no radio).")
+                    Text("__Base__ mode is a special type of interval that increases radio power and turns off event logging.")
+                }.listRowBackground(Color.clear).font(.footnote).listRowInsets(EdgeInsets())
             }
-            .navigationTitle("Advanced Options")
             .navigationBarItems(trailing: Button("Save") {
                 completionHandler(true)
             })
@@ -352,7 +370,7 @@ struct AdvancedOptionsModalView: View {
                 newOptions = originalVariable
                 completionHandler(false)
             }
-            ).padding()
+            )
         }
         Button(action: {
             newOptions = BLEManager.AdvancedOptionsStruct(duration: 2.0, modulo: 2.0, extevent: false, usemag: false)
