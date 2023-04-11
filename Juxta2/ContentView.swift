@@ -179,7 +179,7 @@ struct ContentView: View {
                         // This triggers an update when showSheet changes, even without the Text(variableToPass) in the view
                     }
                     .sheet(isPresented: $showAdvancedOptionsModal) {
-                        AdvancedOptionsModalView(newOptions: $newOptions, juxtaMode: "\(juxtaModes[Int(bleManager.deviceAdvertisingMode)])") { doSave in
+                        AdvancedOptionsModalView(newOptions: $newOptions, juxtaMode: "\(juxtaModes[Int(bleManager.deviceAdvertisingMode)].label)") { doSave in
                             self.showAdvancedOptionsModal = false
                             if doSave {
                                 bleManager.updateAdvertisingMode(newOptions)
