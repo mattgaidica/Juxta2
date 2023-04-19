@@ -306,7 +306,7 @@ struct AdvancedOptionsModalView: View {
     @State private var originalVariable: BLEManager.AdvancedOptionsStruct
     
     let durationDisplay = ["1", "2", "5", "10"]
-    let moduloDisplay = ["20", "30", "60", "3600"]
+    let moduloDisplay = ["30", "60", "360", "3600"]
 
     init(newOptions: Binding<BLEManager.AdvancedOptionsStruct>, juxtaMode: String, completionHandler: @escaping (Bool) -> Void) {
         self._newOptions = newOptions
@@ -373,7 +373,7 @@ struct AdvancedOptionsModalView: View {
             )
         }
         Button(action: {
-            newOptions = BLEManager.AdvancedOptionsStruct(duration: 2.0, modulo: 2.0, extevent: false, usemag: false)
+            newOptions = BLEManager.AdvancedOptionsStruct(duration: 2.0, modulo: 1.0, extevent: false, usemag: false)
         }) {
             Text("Use Defaults")
         }.buttonStyle(WhiteButton())
