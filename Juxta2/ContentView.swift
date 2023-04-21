@@ -269,6 +269,7 @@ struct ContentView: View {
                         }
                     }
                 }
+                Text(bleManager.myVersion).font(.footnote).foregroundColor(.gray)
             }
             Spacer()
         }.padding().colorScheme(.dark) // Force dark mode

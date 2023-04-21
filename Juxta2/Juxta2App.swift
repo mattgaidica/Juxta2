@@ -34,7 +34,7 @@ struct ActivityViewController: UIViewControllerRepresentable {
 
 class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     var myCentral: CBCentralManager!
-    @Published var isConnected: Bool = true
+    @Published var isConnected: Bool = false
     @Published var isConnecting: Bool = false
     @Published var isSwitchedOn = false
     @Published var devices: [CBPeripheral] = []
@@ -54,6 +54,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         var usemag: Bool
     }
     
+    @Published var myVersion: String = "v230421"
     @Published var deviceName: String = "JX_XXXXXXXXXXXX"
     @Published var deviceRSSI: Int = 0
     @Published var deviceLogCount: UInt32 = 0
