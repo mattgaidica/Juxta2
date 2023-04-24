@@ -34,7 +34,7 @@ struct ActivityViewController: UIViewControllerRepresentable {
 
 class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     var myCentral: CBCentralManager!
-    @Published var isConnected: Bool = false
+    @Published var isConnected: Bool = true
     @Published var isConnecting: Bool = false
     @Published var isSwitchedOn = false
     @Published var devices: [CBPeripheral] = []
@@ -50,8 +50,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     struct AdvancedOptionsStruct {
         var duration: Float
         var modulo: Float
-        var extevent: Bool
-        var usemag: Bool
+        var fasterEvents: Bool
+        var isBase: Bool
     }
     
     @Published var myVersion: String = "v230421"
@@ -75,6 +75,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var subject: String = "SUBJECT"
     @Published var version: Float = 0.0
     @Published var softwareVersion: String = ""
+    @Published var isBase: Bool = false
     
     private var discoveredDevices = Set<CBPeripheral>()
     private var connectedPeripheral: CBPeripheral?
@@ -97,7 +98,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     private var hexTimeData = [UInt8](repeating: 0, count: 4)
     private var dumpType: UInt8 = 0
-    public var advancedOptions = AdvancedOptionsStruct(duration: 0.0, modulo: 0.0, extevent: false, usemag: false)
+    public var advancedOptions = AdvancedOptionsStruct(duration: 0.0, modulo: 0.0, fasterEvents: false, isBase: false)
     
     // data vars
     private var data_logCount: UInt32 = 0
@@ -109,7 +110,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 //    private var data_mg = [Int16](repeating: 0, count: 3)
     private var data_meta = [UInt8](repeating: 0, count: 4)
     private var dataBuffer = [UInt8](repeating: 0, count: 128)
-    private var subjectBuffer = [UInt8](repeating: 0, count: 16) // see JUXTAPROFILE_SUBJECT_LEN
     private var dataPos: UInt32 = 0
     private var myMAC: String = ""
     
@@ -367,10 +367,10 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 deviceAdvertisingMode = 0b00000011 & characteristicValue[0]
                 advancedOptions.duration = Float((0b00001100 & characteristicValue[0]) >> 2)
                 advancedOptions.modulo = Float((0b00110000 & characteristicValue[0]) >> 4)
-                let extendEvents: Bool = (((0b01000000 & characteristicValue[0]) >> 6) != 0)
-                advancedOptions.extevent = extendEvents
-                let useMag: Bool = (((0b10000000 & characteristicValue[0]) >> 7) != 0)
-                advancedOptions.usemag = useMag
+                let fasterEvents: Bool = (((0b01000000 & characteristicValue[0]) >> 6) != 0)
+                advancedOptions.fasterEvents = fasterEvents
+                isBase = (((0b10000000 & characteristicValue[0]) >> 7) != 0) // published
+                advancedOptions.isBase = isBase
             }
         }
 //        if characteristic == commandChar {
@@ -398,6 +398,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                                 forceExit = true
                             }
                         case 2: // header
+                            nprint(String(format: "%@,", subject))
                             nprint(String(format:"%@,", myMAC))
                         case 3:
                             data_scanAddr[5] = data
@@ -455,6 +456,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                             }
                         case 2: // header
                             nprint(String(format: "%@,", subject))
+                            nprint(String(format:"%@,", myMAC))
                         case 3: // datatype
                             nprint(String(format: "%@,", DATA_TYPES[Int(data)]))
                         case 4:
@@ -571,17 +573,16 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
     
     func updateAdvertisingMode(_ newOptions: AdvancedOptionsStruct?) {
-        advancedOptions = newOptions ?? AdvancedOptionsStruct(duration: 0.0, modulo: 0.0, extevent: false, usemag: false)
+        advancedOptions = newOptions ?? AdvancedOptionsStruct(duration: 0.0, modulo: 0.0, fasterEvents: false, isBase: false)
         if let peripheral = connectedPeripheral, let characteristic = advertiseModeChar {
             jprint("Updating advertising mode")
             var juxtaModeByte: UInt8 = 0
             juxtaModeByte |= 0b00000011 & deviceAdvertisingMode
             juxtaModeByte |= 0b00001100 & UInt8(advancedOptions.duration) << 2
             juxtaModeByte |= 0b00110000 & UInt8(advancedOptions.modulo) << 4
-            let extendEvents: UInt8 = advancedOptions.extevent ? 1 : 0
-            juxtaModeByte |= 0b01000000 & extendEvents << 6
-            let useMag: UInt8 = advancedOptions.usemag ? 1 : 0
-            juxtaModeByte |= 0b10000000 & useMag << 7
+            let fasterEvents: UInt8 = advancedOptions.fasterEvents ? 1 : 0
+            juxtaModeByte |= 0b01000000 & fasterEvents << 6
+             // 0b10000000 = isBase, read only so no need to set
             let data = Data([juxtaModeByte])
             peripheral.writeValue(data, for: characteristic, type: .withResponse)
         }
@@ -595,10 +596,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
     
     func updateSubject(_ newSubject: String?) {
-        // option to update here
+        // option to update
         if let newSubject = newSubject {
             subject = newSubject
         }
+        var subjectBuffer = [UInt8](repeating: 0, count: 16) // see JUXTAPROFILE_SUBJECT_LEN
         if let peripheral = connectedPeripheral, let characteristic = subjectChar {
             jprint("Updating subject")
             for (i, byte) in subject.utf8.prefix(subjectBuffer.count).enumerated() {
@@ -649,9 +651,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         buttonDisable = true
         dumpType = dt
         if dumpType == LOGS_DUMP_KEY {
-            juxtaTextbox = "my_mac,their_mac,rssi,local_time\n"
+            juxtaTextbox = "subject,my_mac,their_mac,rssi,local_time\n"
         } else if dumpType == META_DUMP_KEY {
-            juxtaTextbox = "subject,data_type,data_value,local_time\n"
+            juxtaTextbox = "subject,my_mac,data_type,data_value,local_time\n"
         }
         resetVars()
         dataPos = 0

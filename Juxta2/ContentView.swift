@@ -15,13 +15,13 @@ struct ContentView: View {
     @State private var newSubject = ""
     @State private var showSubjectModal = false
     @State private var showAdvancedOptionsModal = false
-    @State private var newOptions = BLEManager.AdvancedOptionsStruct(duration: 0, modulo: 0, extevent: false, usemag: false)
+    @State private var newOptions = BLEManager.AdvancedOptionsStruct(duration: 0, modulo: 0, fasterEvents: false, isBase: false)
     
     let juxtaModes: [Option] = [
         Option(value: 0, label: "Shelf"),
-        Option(value: 1, label: "Interval"),
-        Option(value: 2, label: "Motion"),
-        Option(value: 3, label: "Base")
+        Option(value: 1, label: "Interval")
+//        Option(value: 2, label: "Motion"),
+//        Option(value: 3, label: "Base")
     ]
     
     var body: some View {
@@ -54,9 +54,16 @@ struct ContentView: View {
             if bleManager.isConnected {
                 VStack {
                     HStack {
-                        Text(bleManager.deviceName)
-                            .fontWeight(.heavy)
-                            .font(.title2)
+                        VStack(alignment: .leading) {
+                            Text(bleManager.deviceName)
+                                .fontWeight(.heavy)
+                                .font(.title2)
+                            if bleManager.isBase {
+                                Text("BASE STATION").font(.subheadline).foregroundColor(.white)
+                            } else {
+                                Text("ANIMAL LOGGER").font(.subheadline).foregroundColor(.white)
+                            }
+                        }
                         Spacer()
                         Button(action: {
                             bleManager.disconnect()
@@ -95,7 +102,7 @@ struct ContentView: View {
                         Spacer()
                         VStack(alignment: .trailing) {
                             Text("\(bleManager.subject)").font(.title2).fontWeight(.bold)
-                            Text("Click to Edit").font(.caption).opacity(0.5)
+                            Text("Click to Edit").font(.subheadline).opacity(0.5)
                         }.onTapGesture {
                             newSubject = bleManager.getSubject() // non-publishable string
                             self.showSubjectModal = true
@@ -172,7 +179,7 @@ struct ContentView: View {
                             newOptions = bleManager.getAdvancedOptions()
                             showAdvancedOptionsModal = true
                         }) {
-                            Text("Advanced Options").font(.caption)
+                            Text("Advanced Options").font(.subheadline)
                         }
                     }.padding(EdgeInsets(top: 10, leading: 0, bottom: 0, trailing: 0))
                     .onChange(of: showAdvancedOptionsModal) { _ in
@@ -287,7 +294,7 @@ struct NonEditableTextEditor: UIViewRepresentable {
     
     func makeUIView(context: Context) -> UITextView {
         let textView = UITextView()
-        textView.font = UIFont.monospacedDigitSystemFont(ofSize: UIFont.smallSystemFontSize, weight: .light)
+        textView.font = UIFont.monospacedDigitSystemFont(ofSize: 9, weight: .light)
         textView.isEditable = false
         textView.isSelectable = false
         textView.text = text
@@ -307,7 +314,7 @@ struct AdvancedOptionsModalView: View {
     @State private var originalVariable: BLEManager.AdvancedOptionsStruct
     
     let durationDisplay = ["1", "2", "5", "10"]
-    let moduloDisplay = ["30", "60", "360", "3600"]
+    let moduloDisplay = ["20", "30", "60", "360"]
 
     init(newOptions: Binding<BLEManager.AdvancedOptionsStruct>, juxtaMode: String, completionHandler: @escaping (Bool) -> Void) {
         self._newOptions = newOptions
@@ -350,7 +357,7 @@ struct AdvancedOptionsModalView: View {
                 }
                 Section {
                     VStack {
-                        Toggle("Increase event logging rate?", isOn: $newOptions.extevent)
+                        Toggle("Increase event logging rate?", isOn: $newOptions.fasterEvents)
                         HStack {
                             Text("From a maximum of 60s to 10s (eg, motion).").font(.footnote).opacity(0.5).multilineTextAlignment(.leading)
                             Spacer()
@@ -360,8 +367,8 @@ struct AdvancedOptionsModalView: View {
                 Section {
                     Text("__Shelf__ mode only advertises when the device is pointing skywards. It keeps time, but does not log anything.").padding(0)
                     Text("__Interval__ mode uses the interval settings turn on scanning and advertising at a set rate. It also logs motion events.")
-                    Text("__Motion__ mode only logs motion events (no radio).")
-                    Text("__Base__ mode is a special type of interval that increases radio power and turns off event logging.")
+//                    Text("__Motion__ mode only logs motion events (no radio).")
+//                    Text("__Base__ mode is a special type of interval that increases radio power and turns off event logging.")
                 }.listRowBackground(Color.clear).font(.footnote).listRowInsets(EdgeInsets())
             }
             .navigationBarItems(trailing: Button("Save") {
@@ -374,7 +381,7 @@ struct AdvancedOptionsModalView: View {
             )
         }
         Button(action: {
-            newOptions = BLEManager.AdvancedOptionsStruct(duration: 2.0, modulo: 1.0, extevent: false, usemag: false)
+            newOptions = BLEManager.AdvancedOptionsStruct(duration: 2.0, modulo: 2.0, fasterEvents: false, isBase: false)
         }) {
             Text("Use Defaults")
         }.buttonStyle(WhiteButton())
@@ -480,6 +487,11 @@ struct BigBlueButton: ButtonStyle {
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView()
+        Group {
+            ContentView().previewDisplayName("Home")
+            SubjectModalView(newSubject: .constant("Preview Subject")) {_ in
+            }.previewDisplayName("Subject")
+            AdvancedOptionsModalView(newOptions: .constant(BLEManager.AdvancedOptionsStruct(duration: 0, modulo: 0, fasterEvents: false, isBase: false)), juxtaMode: "Test", completionHandler: {_ in }).previewDisplayName("Options")
+        }
     }
 }
