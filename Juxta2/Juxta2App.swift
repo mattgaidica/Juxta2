@@ -54,7 +54,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         var isBase: Bool
     }
     
-    @Published var myVersion: String = "v230421"
+    @Published var myVersion: String = "v230426"
     @Published var deviceName: String = "JX_XXXXXXXXXXXX"
     @Published var deviceRSSI: Int = 0
     @Published var deviceLogCount: UInt32 = 0
@@ -74,7 +74,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var syncBorder: CGFloat = 0
     @Published var subject: String = "SUBJECT"
     @Published var version: Float = 0.0
-    @Published var softwareVersion: String = ""
+    @Published var softwareVersion: String = "v000000"
     @Published var isBase: Bool = false
     
     private var discoveredDevices = Set<CBPeripheral>()

@@ -32,6 +32,8 @@ struct ContentView: View {
                     Text(bleManager.dateStr)
                         .font(.title)
                         .fontWeight(.bold)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
                 }
                 HStack {
                     Text(String(format: "0x%llX • %i", bleManager.seconds, bleManager.seconds))
@@ -57,7 +59,7 @@ struct ContentView: View {
                         VStack(alignment: .leading) {
                             Text(bleManager.deviceName)
                                 .fontWeight(.heavy)
-                                .font(.title2)
+                                .font(.title3)
                             if bleManager.isBase {
                                 Text("BASE STATION").font(.subheadline).foregroundColor(.white)
                             } else {
@@ -101,8 +103,8 @@ struct ContentView: View {
                         }.buttonStyle(YellowButton())
                         Spacer()
                         VStack(alignment: .trailing) {
-                            Text("\(bleManager.subject)").font(.title2).fontWeight(.bold)
-                            Text("Click to Edit").font(.subheadline).opacity(0.5)
+                            Text("\(bleManager.subject)").font(.title3).fontWeight(.bold)
+                            Text("Click to Edit").font(.caption).opacity(0.5)
                         }.onTapGesture {
                             newSubject = bleManager.getSubject() // non-publishable string
                             self.showSubjectModal = true
@@ -133,7 +135,7 @@ struct ContentView: View {
                         }.padding(10)
                         Spacer()
                         VStack(alignment: .trailing) {
-                            Text(String(format: "%i", bleManager.deviceLogCount)).font(.title2).fontWeight(.bold)
+                            Text(String(format: "%i", bleManager.deviceLogCount)).font(.title3).fontWeight(.bold)
                             Text(String(format: "0x%08x", bleManager.deviceLogCount)).font(.subheadline)
                                 
                         }
@@ -152,7 +154,7 @@ struct ContentView: View {
                         }.padding(10)
                         Spacer()
                         VStack(alignment: .trailing) {
-                            Text(String(format: "%i", bleManager.deviceMetaCount)).font(.title2).fontWeight(.bold)
+                            Text(String(format: "%i", bleManager.deviceMetaCount)).font(.title3).fontWeight(.bold)
                             Text(String(format: "0x%08x", bleManager.deviceMetaCount)).font(.subheadline)
                         }
                     }
@@ -170,7 +172,7 @@ struct ContentView: View {
                         }.padding(10).border(.white, width: bleManager.syncBorder)
                         Spacer()
                         VStack(alignment: .trailing) {
-                            Text(String(format: "%i", bleManager.deviceLocalTime)).font(.title2).fontWeight(.bold)
+                            Text(String(format: "%i", bleManager.deviceLocalTime)).font(.title3).fontWeight(.bold)
                             Text(String(format: "0x%08x", bleManager.deviceLocalTime)).font(.subheadline)
                         }
                     }
@@ -179,7 +181,7 @@ struct ContentView: View {
                             newOptions = bleManager.getAdvancedOptions()
                             showAdvancedOptionsModal = true
                         }) {
-                            Text("Advanced Options").font(.subheadline)
+                            Text("Advanced Options")
                         }
                     }.padding(EdgeInsets(top: 10, leading: 0, bottom: 0, trailing: 0))
                     .onChange(of: showAdvancedOptionsModal) { _ in
@@ -201,7 +203,7 @@ struct ContentView: View {
                         Button(action: {
                             bleManager.dumpData(bleManager.LOGS_DUMP_KEY)
                         }) {
-                            Text("Dump Log Data")
+                            Text("Dump Logs")
                         }.buttonStyle(BlueButton()).disabled(bleManager.buttonDisable).opacity(bleManager.buttonDisable ? 0.5 : 1)
                         Spacer()
                         // include header below (-1)
@@ -211,7 +213,7 @@ struct ContentView: View {
                         Button(action: {
                             bleManager.dumpData(bleManager.META_DUMP_KEY)
                         }) {
-                            Text("Dump Meta Data")
+                            Text("Dump Meta")
                         }.buttonStyle(BlueButton()).disabled(bleManager.buttonDisable).opacity(bleManager.buttonDisable ? 0.5 : 1)
                     }
                     
@@ -279,7 +281,7 @@ struct ContentView: View {
                 Text(bleManager.myVersion).font(.footnote).foregroundColor(.gray)
             }
             Spacer()
-        }.padding().colorScheme(.dark) // Force dark mode
+        }.padding()
     }
 }
 
@@ -338,7 +340,7 @@ struct AdvancedOptionsModalView: View {
                         .cornerRadius(10)
                         .pickerStyle(.wheel)
                     Text(" Mode")
-                }.listRowBackground(Color.clear).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center).font(.title)
+                }.listRowBackground(Color.clear).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center).font(.title2)
                 Section(header: Text("Interval Settings")) {
                     VStack(alignment: .leading) {
                         Text("Scan/Advertise for...").font(.footnote)
@@ -357,7 +359,8 @@ struct AdvancedOptionsModalView: View {
                 }
                 Section {
                     VStack {
-                        Toggle("Increase event logging rate?", isOn: $newOptions.fasterEvents)
+                        Toggle("Increase event logging rate?", isOn: $newOptions.fasterEvents).lineLimit(1)
+                            .minimumScaleFactor(0.5)
                         HStack {
                             Text("From a maximum of 60s to 10s (eg, motion).").font(.footnote).opacity(0.5).multilineTextAlignment(.leading)
                             Spacer()
@@ -365,7 +368,7 @@ struct AdvancedOptionsModalView: View {
                     }
                 }
                 Section {
-                    Text("__Shelf__ mode only advertises when the device is pointing skywards. It keeps time, but does not log anything.").padding(0)
+                    Text("__Shelf__ mode only advertises when the device is pointing skywards. It keeps time, but does not log anything.")
                     Text("__Interval__ mode uses the interval settings turn on scanning and advertising at a set rate. It also logs motion events.")
 //                    Text("__Motion__ mode only logs motion events (no radio).")
 //                    Text("__Base__ mode is a special type of interval that increases radio power and turns off event logging.")
@@ -408,7 +411,7 @@ struct SubjectModalView: View {
     var body: some View {
         NavigationView {
             Form {
-                TextField("SUBJECT", text: $newSubject).font(.title)
+                TextField("SUBJECT", text: $newSubject).font(.title2)
                 Text("Note: A *subject* is associated with a device but not every row of it's data in memory. It is only listed during log dumps for clear archiving.").font(.footnote).opacity(0.5)
             }.autocapitalization(.allCharacters).textContentType(.username)
             .navigationTitle("Edit Subject")
@@ -435,7 +438,7 @@ struct SubjectModalView: View {
 struct WhiteButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .padding(10)
+            .padding(8)
             .background(.white)
             .foregroundColor(.black)
             .clipShape(Capsule())
@@ -447,8 +450,8 @@ struct WhiteButton: ButtonStyle {
 struct YellowButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .frame(width:150)
-            .padding(10)
+            .frame(width:140)
+            .padding(8)
             .background(.yellow)
             .foregroundColor(.black)
             .clipShape(Capsule())
@@ -462,7 +465,7 @@ struct BlueButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(width:130)
-            .padding(10)
+            .padding(8)
             .background(.blue)
             .foregroundColor(.black)
             .clipShape(Capsule())
@@ -475,7 +478,7 @@ struct BigBlueButton: ButtonStyle {
     @ObservedObject var bleManager = BLEManager()
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .padding(20)
+            .padding(15)
             .font(.title2)
             .background(.blue)
             .foregroundColor(.black)
@@ -489,7 +492,7 @@ struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
             ContentView().previewDisplayName("Home")
-            SubjectModalView(newSubject: .constant("Preview Subject")) {_ in
+            SubjectModalView(newSubject: .constant("JXXX")) {_ in
             }.previewDisplayName("Subject")
             AdvancedOptionsModalView(newOptions: .constant(BLEManager.AdvancedOptionsStruct(duration: 0, modulo: 0, fasterEvents: false, isBase: false)), juxtaMode: "Test", completionHandler: {_ in }).previewDisplayName("Options")
         }
