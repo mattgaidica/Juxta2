@@ -54,8 +54,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         var isBase: Bool
     }
     
-    @Published var myVersion: String = "v230426"
-    @Published var deviceName: String = "JX_XXXXXXXXXXXX"
+    @Published var myVersion: String = "v230429"
+    @Published var deviceName: String = "JXXXXXXXXXXXX"
     @Published var deviceRSSI: Int = 0
     @Published var deviceLogCount: UInt32 = 0
     @Published var deviceLocalTime: UInt32 = 0
@@ -146,19 +146,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         connectTimeoutTimer?.invalidate()
         isConnecting = false
         juxtaTextbox = ""
-        deviceName = peripheral.name ?? "JX_X"
-        let stringParts = deviceName.split(separator: "_")
-        if stringParts.count > 1 {
-            let splitMACAddress = String(stringParts[1])
-            myMAC = ""
-            for (index, char) in splitMACAddress.enumerated() {
-                if index % 2 == 0 && index != 0 {
-                    myMAC += ":"
-                }
-                myMAC += String(char)
+        deviceName = peripheral.name ?? "JX"
+        myMAC = ""
+        for (index, char) in deviceName.enumerated() {
+            if index % 2 == 0 && index != 0 {
+                myMAC += ":"
             }
-        } else {
-            myMAC = "X"
+            myMAC += String(char)
         }
         connectedPeripheral = peripheral
         self.timerRSSI = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in

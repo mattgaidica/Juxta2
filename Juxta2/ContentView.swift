@@ -270,7 +270,7 @@ struct ContentView: View {
                             doScan = false
                         }) {
                             HStack {
-                                Text(peripheral.name ?? "JX_X")
+                                Text(peripheral.name ?? "JX")
                                 Spacer()
                                 Text(bleManager.getRSSIString(rssi)).foregroundColor(.green).fontWeight(.black)
                                 Text("\(rssi) dB").frame(width:50)
@@ -492,7 +492,7 @@ struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
             ContentView().previewDisplayName("Home")
-            SubjectModalView(newSubject: .constant("JXXX")) {_ in
+            SubjectModalView(newSubject: .constant("JX")) {_ in
             }.previewDisplayName("Subject")
             AdvancedOptionsModalView(newOptions: .constant(BLEManager.AdvancedOptionsStruct(duration: 0, modulo: 0, fasterEvents: false, isBase: false)), juxtaMode: "Test", completionHandler: {_ in }).previewDisplayName("Options")
         }
