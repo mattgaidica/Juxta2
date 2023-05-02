@@ -45,16 +45,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     public let META_DUMP_KEY: UInt8 = 0x22
     private let JUXTA_LOG_LENGTH: UInt32 = 13
     private let JUXTA_META_LENGTH: UInt32 = 11
-    public let DATA_TYPES = ["xl","mg","conn","vbatt","deg_c"] // found in: juxtaDatatypes_t
+    public let DATA_TYPES = ["xl","mg","conn","vbatt","deg_c","mode","tsync","isbase"] // found in: juxtaDatatypes_t
     
-    struct AdvancedOptionsStruct {
-        var duration: Float
-        var modulo: Float
-        var fasterEvents: Bool
-        var isBase: Bool
-    }
-    
-    @Published var myVersion: String = "v230429"
+    @Published var myVersion: String = "v230501" // for ios app
     @Published var deviceName: String = "JXXXXXXXXXXXX"
     @Published var deviceRSSI: Int = 0
     @Published var deviceLogCount: UInt32 = 0
@@ -74,7 +67,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var syncBorder: CGFloat = 0
     @Published var subject: String = "SUBJECT"
     @Published var version: Float = 0.0
-    @Published var softwareVersion: String = "v000000"
+    @Published var softwareVersion: String = "v000000" // from peripheral
     @Published var isBase: Bool = false
     
     private var discoveredDevices = Set<CBPeripheral>()
@@ -98,7 +91,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     private var hexTimeData = [UInt8](repeating: 0, count: 4)
     private var dumpType: UInt8 = 0
-    public var advancedOptions = AdvancedOptionsStruct(duration: 0.0, modulo: 0.0, fasterEvents: false, isBase: false)
+    
+    struct AdvancedOptionsStruct {
+        var juxtaAdvEvery: Float
+        var juxtaScanEvery: Float
+    }
+    public var advancedOptions = AdvancedOptionsStruct(juxtaAdvEvery: 0.0, juxtaScanEvery: 0.0)
     
     // data vars
     private var data_logCount: UInt32 = 0
@@ -149,7 +147,10 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         deviceName = peripheral.name ?? "JX"
         myMAC = ""
         for (index, char) in deviceName.enumerated() {
-            if index % 2 == 0 && index != 0 {
+            if index == 0 {
+                continue // skip the first character of deviceName
+            }
+            if myMAC.count > 0 && (index - 1) % 2 == 0 {
                 myMAC += ":"
             }
             myMAC += String(char)
@@ -260,7 +261,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         isConnecting = true
         stopScan()
         myCentral.connect(peripheral, options: nil)
-        connectTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: false) { _ in
+        connectTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: false) { _ in
             if !self.isConnected {
                 self.myCentral.cancelPeripheralConnection(peripheral)
                 self.disconnect()
@@ -284,8 +285,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         resetDevices()
         // !! this will not update RSSI unless scanning is looped
         var loopCount = 0
-        timerScan = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { _ in
-            if loopCount < 5 {
+        timerScan = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
+            if loopCount < 8 {
                 self.myCentral.scanForPeripherals(withServices: [CBUUIDs.JuxtaService], options: nil)
                 loopCount += 1
             } else {
@@ -358,22 +359,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
         if characteristic == advertiseModeChar {
             if let characteristicValue = characteristic.value {
-                deviceAdvertisingMode = 0b00000011 & characteristicValue[0]
-                advancedOptions.duration = Float((0b00001100 & characteristicValue[0]) >> 2)
-                advancedOptions.modulo = Float((0b00110000 & characteristicValue[0]) >> 4)
-                let fasterEvents: Bool = (((0b01000000 & characteristicValue[0]) >> 6) != 0)
-                advancedOptions.fasterEvents = fasterEvents
-                isBase = (((0b10000000 & characteristicValue[0]) >> 7) != 0) // published
-                advancedOptions.isBase = isBase
+                deviceAdvertisingMode = (0b00000001 & characteristicValue[0])
+                isBase = ((0b00000010 & characteristicValue[0]) >> 1) != 0  // published
+                advancedOptions.juxtaAdvEvery = Float((0b00001100 & characteristicValue[0]) >> 2)
+                advancedOptions.juxtaScanEvery = Float((0b00110000 & characteristicValue[0]) >> 4)
             }
         }
-//        if characteristic == commandChar {
-//            if let characteristicValue = characteristic.value {
-//                let versionInt = (0b11110000 & characteristicValue[0]) >> 4
-//                let versionFrac = (0b00001111 & characteristicValue[0])
-//                version = Float(versionInt) + (Float(versionFrac) / 10)
-//            }
-//        }
         if characteristic == dataChar {
             guard let characteristicValue = characteristic.value else { return }
             if characteristicValue.count == dataBuffer.count {
@@ -567,18 +558,18 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
     
     func updateAdvertisingMode(_ newOptions: AdvancedOptionsStruct?) {
-        advancedOptions = newOptions ?? AdvancedOptionsStruct(duration: 0.0, modulo: 0.0, fasterEvents: false, isBase: false)
+        advancedOptions = newOptions ?? AdvancedOptionsStruct(juxtaAdvEvery: 0.0, juxtaScanEvery: 0.0)
         if let peripheral = connectedPeripheral, let characteristic = advertiseModeChar {
             jprint("Updating advertising mode")
             var juxtaModeByte: UInt8 = 0
-            juxtaModeByte |= 0b00000011 & deviceAdvertisingMode
-            juxtaModeByte |= 0b00001100 & UInt8(advancedOptions.duration) << 2
-            juxtaModeByte |= 0b00110000 & UInt8(advancedOptions.modulo) << 4
-            let fasterEvents: UInt8 = advancedOptions.fasterEvents ? 1 : 0
-            juxtaModeByte |= 0b01000000 & fasterEvents << 6
-             // 0b10000000 = isBase, read only so no need to set
-            let data = Data([juxtaModeByte])
-            peripheral.writeValue(data, for: characteristic, type: .withResponse)
+            juxtaModeByte |= 0b00000001 & deviceAdvertisingMode
+            if isBase {
+                juxtaModeByte |= 0b00000010
+            }
+            juxtaModeByte |= 0b00001100 & UInt8(advancedOptions.juxtaAdvEvery) << 2
+            juxtaModeByte |= 0b00110000 & UInt8(advancedOptions.juxtaScanEvery) << 4
+            
+            peripheral.writeValue(Data([juxtaModeByte]), for: characteristic, type: .withResponse)
         }
     }
     

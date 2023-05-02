@@ -11,11 +11,10 @@ import CoreBluetooth
 struct ContentView: View {
     @ObservedObject var bleManager = BLEManager()
     @State var doScan = false
-    @State private var isConnectingPulsing = false
     @State private var newSubject = ""
     @State private var showSubjectModal = false
     @State private var showAdvancedOptionsModal = false
-    @State private var newOptions = BLEManager.AdvancedOptionsStruct(duration: 0, modulo: 0, fasterEvents: false, isBase: false)
+    @State private var newOptions = BLEManager.AdvancedOptionsStruct(juxtaAdvEvery: 0.0, juxtaScanEvery: 0.0)
     
     let juxtaModes: [Option] = [
         Option(value: 0, label: "Shelf"),
@@ -45,12 +44,6 @@ struct ContentView: View {
                 Text("CONNECTING\n\(bleManager.connectingPeripheralName)")
                     .font(.title)
                     .multilineTextAlignment(.center)
-                    .scaleEffect(isConnectingPulsing ? 1.25 : 1.0) // scale the text up and down
-                    .onAppear {
-                        withAnimation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) { // animate the scale effect
-                            isConnectingPulsing = true
-                        }
-                    }
             }
             
             if bleManager.isConnected {
@@ -315,8 +308,8 @@ struct AdvancedOptionsModalView: View {
     // Add a new property to store the original value
     @State private var originalVariable: BLEManager.AdvancedOptionsStruct
     
-    let durationDisplay = ["1", "2", "5", "10"]
-    let moduloDisplay = ["20", "30", "60", "360"]
+    let juxtaAdvEvery_table = ["1", "2", "5", "10"]
+    let juxtaScanEvery_table = ["10","20","30","60"]
 
     init(newOptions: Binding<BLEManager.AdvancedOptionsStruct>, juxtaMode: String, completionHandler: @escaping (Bool) -> Void) {
         self._newOptions = newOptions
@@ -343,36 +336,21 @@ struct AdvancedOptionsModalView: View {
                 }.listRowBackground(Color.clear).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center).font(.title2)
                 Section(header: Text("Interval Settings")) {
                     VStack(alignment: .leading) {
-                        Text("Scan/Advertise for...").font(.footnote)
-                        Slider(value: $newOptions.duration, in: 0...3, step: 1.0)
-                        if newOptions.duration == 0 {
-                            Text("\(durationDisplay[Int(newOptions.duration)]) second")
+                        Text("Advertise every...").font(.footnote)
+                        Slider(value: $newOptions.juxtaAdvEvery, in: 0...3, step: 1.0)
+                        if newOptions.juxtaAdvEvery == 0 {
+                            Text("\(juxtaAdvEvery_table[Int(newOptions.juxtaAdvEvery)]) second")
                         } else {
-                            Text("\(durationDisplay[Int(newOptions.duration)]) seconds")
+                            Text("\(juxtaAdvEvery_table[Int(newOptions.juxtaAdvEvery)]) seconds")
                         }
                     }
+                    
                     VStack(alignment: .leading) {
-                        Text("Every... (modulo time)").font(.footnote)
-                        Slider(value: $newOptions.modulo, in: 0...3, step: 1.0)
-                        Text("\(moduloDisplay[Int(newOptions.modulo)]) seconds")
+                        Text("Scan every...").font(.footnote)
+                        Slider(value: $newOptions.juxtaScanEvery, in: 0...3, step: 1.0)
+                        Text("\(juxtaScanEvery_table[Int(newOptions.juxtaScanEvery)]) seconds")
                     }
                 }
-                Section {
-                    VStack {
-                        Toggle("Increase event logging rate?", isOn: $newOptions.fasterEvents).lineLimit(1)
-                            .minimumScaleFactor(0.5)
-                        HStack {
-                            Text("From a maximum of 60s to 10s (eg, motion).").font(.footnote).opacity(0.5).multilineTextAlignment(.leading)
-                            Spacer()
-                        }
-                    }
-                }
-                Section {
-                    Text("__Shelf__ mode only advertises when the device is pointing skywards. It keeps time, but does not log anything.")
-                    Text("__Interval__ mode uses the interval settings turn on scanning and advertising at a set rate. It also logs motion events.")
-//                    Text("__Motion__ mode only logs motion events (no radio).")
-//                    Text("__Base__ mode is a special type of interval that increases radio power and turns off event logging.")
-                }.listRowBackground(Color.clear).font(.footnote).listRowInsets(EdgeInsets())
             }
             .navigationBarItems(trailing: Button("Save") {
                 completionHandler(true)
@@ -383,11 +361,11 @@ struct AdvancedOptionsModalView: View {
             }
             )
         }
-        Button(action: {
-            newOptions = BLEManager.AdvancedOptionsStruct(duration: 2.0, modulo: 2.0, fasterEvents: false, isBase: false)
-        }) {
-            Text("Use Defaults")
-        }.buttonStyle(WhiteButton())
+//        Button(action: {
+//            newOptions = BLEManager.AdvancedOptionsStruct(duration: 2.0, modulo: 2.0, fasterEvents: false, isBase: false)
+//        }) {
+//            Text("Use Defaults")
+//        }.buttonStyle(WhiteButton())
     }
 }
 
@@ -494,7 +472,7 @@ struct ContentView_Previews: PreviewProvider {
             ContentView().previewDisplayName("Home")
             SubjectModalView(newSubject: .constant("JX")) {_ in
             }.previewDisplayName("Subject")
-            AdvancedOptionsModalView(newOptions: .constant(BLEManager.AdvancedOptionsStruct(duration: 0, modulo: 0, fasterEvents: false, isBase: false)), juxtaMode: "Test", completionHandler: {_ in }).previewDisplayName("Options")
+            AdvancedOptionsModalView(newOptions: .constant(BLEManager.AdvancedOptionsStruct(juxtaAdvEvery: 0.0, juxtaScanEvery: 0.0)), juxtaMode: "Test", completionHandler: {_ in }).previewDisplayName("Options")
         }
     }
 }
