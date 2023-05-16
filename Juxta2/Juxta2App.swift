@@ -45,9 +45,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     public let META_DUMP_KEY: UInt8 = 0x22
     private let JUXTA_LOG_LENGTH: UInt32 = 13
     private let JUXTA_META_LENGTH: UInt32 = 11
-    public let DATA_TYPES = ["xl","mg","conn","vbatt","deg_c","mode","tsync","isbase"] // found in: juxtaDatatypes_t
+    public let DATA_TYPES = ["xl","mg","conn","vbatt","deg_c","mode","tsync","isbase","rst_logs","rst_meta"] // found in: juxtaDatatypes_t
     
-    @Published var myVersion: String = "v230501" // for ios app
+    @Published var myVersion: String = "v230516c" // for ios app
     @Published var deviceName: String = "JXXXXXXXXXXXX"
     @Published var deviceRSSI: Int = 0
     @Published var deviceLogCount: UInt32 = 0
@@ -61,6 +61,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var isScanning: Bool = false
     @Published var dateStr: String = "XXX X, XXXX XX:XX"
     @Published var copyTextboxString: String = ""
+    @Published var copyDebugString: String = ""
+    @Published var dumpedRecords: Int = 0
     @Published var seconds: UInt32 = 0
     @Published var buttonDisable: Bool = false
     @Published var connectingPeripheralName: String = ""
@@ -110,6 +112,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var dataBuffer = [UInt8](repeating: 0, count: 128)
     private var dataPos: UInt32 = 0
     private var myMAC: String = ""
+    private var juxtaDebugText: String = ""
     
     override init() {
         super.init()
@@ -261,7 +264,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         isConnecting = true
         stopScan()
         myCentral.connect(peripheral, options: nil)
-        connectTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: false) { _ in
+        connectTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { _ in
             if !self.isConnected {
                 self.myCentral.cancelPeripheralConnection(peripheral)
                 self.disconnect()
@@ -377,10 +380,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     for i in 0...dataBuffer.count-1 {
                         dataPos += 1
                         var data = dataBuffer[i]
+                        let debugString = String(format: "%i,%i,%i,%02X", dumpedRecords+1, dataPos, dataPos % JUXTA_META_LENGTH, data);
+                        juxtaDebugText = juxtaDebugText + debugString + "\n"
                         switch dataPos % JUXTA_LOG_LENGTH {
                         case 1: // header
                             if String(format: "%02X", data) != UUIDString {
-                                forceExit = true
+//                                forceExit = true
                             }
                         case 2: // header
                             nprint(String(format: "%@,", subject))
@@ -416,6 +421,10 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                         case 0: // ie, 13
                             data_localTime = data_localTime | UInt32(data) << 24
                             nprint(String(format: "%i\n", data_localTime))
+                            dumpedRecords += 1
+                            if dumpedRecords == deviceMetaCount {
+                                forceExit = true
+                            }
                             resetVars()
                         default:
                             break
@@ -433,11 +442,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     for i in 0...dataBuffer.count-1 {
                         dataPos += 1
                         let data = dataBuffer[i]
-                        print(String(format: "%i - %i - %02X", dataPos,dataPos % JUXTA_META_LENGTH, data))
+                        let debugString = String(format: "%i,%i,%i,%02X", dumpedRecords+1, dataPos, dataPos % JUXTA_META_LENGTH, data);
+                        juxtaDebugText = juxtaDebugText + debugString + "\n"
+//                        print(debugString)
                         switch dataPos % JUXTA_META_LENGTH {
                         case 1: // header
                             if String(format: "%02X", data) != UUIDString {
-                                forceExit = true
+//                                forceExit = true
                             }
                         case 2: // header
                             nprint(String(format: "%@,", subject))
@@ -464,9 +475,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                             data_localTime = data_localTime | UInt32(data) << 8
                         case 10:
                             data_localTime = data_localTime | UInt32(data) << 16
-                        case 0: // ie, 22
+                        case 0:
                             data_localTime = data_localTime | UInt32(data) << 24
                             nprint(String(format: "%i\n", data_localTime))
+                            dumpedRecords += 1
+                            if dumpedRecords == deviceMetaCount {
+                                forceExit = true
+                            }
                             resetVars()
                         default:
                             break
@@ -624,6 +639,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         juxtaTextbox = juxtaTextbox + text
     }
     
+    func copyDebug() {
+        UIPasteboard.general.string = juxtaDebugText
+        copyDebugString = "Copied!"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            self.copyDebugString = ""
+        }
+    }
+    
     func copyTextbox() {
         UIPasteboard.general.string = juxtaTextbox
         copyTextboxString = "Copied!"
@@ -640,6 +663,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         } else if dumpType == META_DUMP_KEY {
             juxtaTextbox = "subject,my_mac,data_type,data_value,local_time\n"
         }
+        juxtaDebugText = ""
+        dumpedRecords = 0
         resetVars()
         dataPos = 0
         resetDataTimer()

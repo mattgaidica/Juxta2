@@ -200,7 +200,7 @@ struct ContentView: View {
                         }.buttonStyle(BlueButton()).disabled(bleManager.buttonDisable).opacity(bleManager.buttonDisable ? 0.5 : 1)
                         Spacer()
                         // include header below (-1)
-                        Text("\(bleManager.juxtaTextbox.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count-1)")
+                        Text("\(bleManager.dumpedRecords)")
                             .font(.footnote).opacity(0.5)
                         Spacer()
                         Button(action: {
@@ -229,6 +229,12 @@ struct ContentView: View {
                             bleManager.copyTextbox()
                         }) {
                             Text(bleManager.copyTextboxString.isEmpty ? "Copy Data" : bleManager.copyTextboxString)
+                        }
+                        Text("|")
+                        Button(action: {
+                            bleManager.copyDebug()
+                        }) {
+                            Text(bleManager.copyDebugString.isEmpty ? "Copy Debug" : bleManager.copyDebugString)
                         }
                     }
                 }
