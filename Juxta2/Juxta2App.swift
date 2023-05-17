@@ -380,7 +380,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     for i in 0...dataBuffer.count-1 {
                         dataPos += 1
                         var data = dataBuffer[i]
-                        let debugString = String(format: "%i,%i,%i,%02X", dumpedRecords+1, dataPos, dataPos % JUXTA_META_LENGTH, data);
+                        let debugString = String(format: "%i,%i,%i,%02X", dumpedRecords+1, dataPos, dataPos % JUXTA_LOG_LENGTH, data);
                         juxtaDebugText = juxtaDebugText + debugString + "\n"
                         switch dataPos % JUXTA_LOG_LENGTH {
                         case 1: // header
