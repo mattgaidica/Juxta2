@@ -403,7 +403,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                         case 8:
                             data_scanAddr[0] = data
                             // optional: rm ":" join, but it might be interpreted as int on import
-                            nprint(data_scanAddr.map { String(format: "%X", $0) }.joined(separator: ":") + ",");
+                            nprint(data_scanAddr.map { String(format: "%02X", $0) }.joined(separator: ":") + ",");
                         case 9:
                             var RSSIInt8: Int8 = 0
                             withUnsafePointer(to: &data) { ptr in
