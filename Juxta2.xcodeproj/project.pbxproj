@@ -281,8 +281,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Juxta2/Info.plist;
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Juxta needs BLE";
-				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Can Juxta use BLE peripherals?";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Let Juxta use Bluetooth?";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Let Juxta use Bluetooth?";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -315,8 +315,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Juxta2/Info.plist;
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Juxta needs BLE";
-				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Can Juxta use BLE peripherals?";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Let Juxta use Bluetooth?";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Let Juxta use Bluetooth?";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

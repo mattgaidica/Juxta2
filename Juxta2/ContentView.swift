@@ -256,7 +256,7 @@ struct ContentView: View {
                         }.buttonStyle(BigBlueButton())
                     }
                 }
-                NavigationView {
+                NavigationStack {
                     List(bleManager.devices.sorted(by: { (peripheral1, peripheral2) -> Bool in
                         guard let rssi1 = bleManager.rssiValues[peripheral1.hash], let rssi2 = bleManager.rssiValues[peripheral2.hash] else {
                             return false
@@ -272,7 +272,7 @@ struct ContentView: View {
                                 Text(peripheral.name ?? "JX")
                                 Spacer()
                                 Text(bleManager.getRSSIString(rssi)).foregroundColor(.green).fontWeight(.black)
-                                Text("\(rssi) dB").frame(width:50)
+                                Text("\(rssi) dB").frame(width:100)
                             }.foregroundColor(.white)
                         }
                     }

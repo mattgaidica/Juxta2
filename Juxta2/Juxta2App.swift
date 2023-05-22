@@ -34,7 +34,7 @@ struct ActivityViewController: UIViewControllerRepresentable {
 
 class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     var myCentral: CBCentralManager!
-    @Published var isConnected: Bool = true
+    @Published var isConnected: Bool = false
     @Published var isConnecting: Bool = false
     @Published var isSwitchedOn = false
     @Published var devices: [CBPeripheral] = []
@@ -47,7 +47,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private let JUXTA_META_LENGTH: UInt32 = 11
     public let DATA_TYPES = ["xl","mg","conn","vbatt","deg_c","mode","tsync","isbase","rst_logs","rst_meta"] // found in: juxtaDatatypes_t
     
-    @Published var myVersion: String = "v230516c" // for ios app
+    @Published var myVersion: String = "v230522" // for ios app
     @Published var deviceName: String = "JXXXXXXXXXXXX"
     @Published var deviceRSSI: Int = 0
     @Published var deviceLogCount: UInt32 = 0
@@ -288,7 +288,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         resetDevices()
         // !! this will not update RSSI unless scanning is looped
         var loopCount = 0
-        timerScan = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
+        timerScan = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
             if loopCount < 8 {
                 self.myCentral.scanForPeripherals(withServices: [CBUUIDs.JuxtaService], options: nil)
                 loopCount += 1
