@@ -47,7 +47,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private let JUXTA_META_LENGTH: UInt32 = 11
     public let DATA_TYPES = ["xl","mg","conn","vbatt","deg_c","mode","tsync","isbase","rst_logs","rst_meta"] // found in: juxtaDatatypes_t
     
-    @Published var myVersion: String = "v230522" // for ios app
+    @Published var myVersion: String = "v230601" // for ios app
     @Published var deviceName: String = "JXXXXXXXXXXXX"
     @Published var deviceRSSI: Int = 0
     @Published var deviceLogCount: UInt32 = 0
@@ -422,7 +422,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                             data_localTime = data_localTime | UInt32(data) << 24
                             nprint(String(format: "%i\n", data_localTime))
                             dumpedRecords += 1
-                            if dumpedRecords == deviceMetaCount {
+                            if dumpedRecords == deviceLogCount {
                                 forceExit = true
                             }
                             resetVars()
