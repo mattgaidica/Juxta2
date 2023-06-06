@@ -7,6 +7,7 @@
 import Foundation
 import SwiftUI
 import CoreBluetooth
+import Combine
 
 @main
 struct Juxta2App: App {
@@ -47,7 +48,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private let JUXTA_META_LENGTH: UInt32 = 11
     public let DATA_TYPES = ["xl","mg","conn","vbatt","deg_c","mode","tsync","isbase","rst_logs","rst_meta"] // found in: juxtaDatatypes_t
     
-    @Published var myVersion: String = "v230601" // for ios app
+    @Published var myVersion: String = "v230605" // for ios app
     @Published var deviceName: String = "JXXXXXXXXXXXX"
     @Published var deviceRSSI: Int = 0
     @Published var deviceLogCount: UInt32 = 0
@@ -76,7 +77,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var connectedPeripheral: CBPeripheral?
     private var timerRSSI: Timer?
     private var timerScan: Timer?
-    private var timer1Hz: Timer?
     private var timerData: Timer?
     private var connectTimeoutTimer: Timer?
     
@@ -118,12 +118,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         super.init()
         myCentral = CBCentralManager(delegate: self, queue: nil)
         myCentral.delegate = self
-        timer1Hz = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            self.dateStr = self.getDateStr()
-            self.seconds = UInt32(NSDate().timeIntervalSince1970)
-        }
     }
-
+    
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == .poweredOn {
             isSwitchedOn = true
@@ -513,13 +509,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     }
     
-    func getDateStr() -> String {
-        let date = Date()
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "MMM d, YYYY HH:mm:ss"
-        return dateFormatter.string(from: date)
-    }
-    
     func readLogCount() {
         if let peripheral = connectedPeripheral, let characteristic = logCountChar {
             jprint("Reading log count")
@@ -724,5 +713,31 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     func lsm303agr_from_lsb_to_mgauss(_ lsb: Int16) -> Float {
         return Float(lsb) * 1.5
+    }
+}
+
+class TimeViewModel: ObservableObject {
+    @Published var dateStr = ""
+    @Published var seconds: UInt32 = 0
+    
+    private var cancellable: AnyCancellable?
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy HH:mm:ss"
+        return formatter
+    }()
+    
+    init() {
+        cancellable = Timer.publish(every: 1, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.setDateTime()
+            }
+    }
+    
+    private func setDateTime() {
+        let date = Date()
+        dateStr = dateFormatter.string(from: date)
+        seconds = UInt32(date.timeIntervalSince1970)
     }
 }

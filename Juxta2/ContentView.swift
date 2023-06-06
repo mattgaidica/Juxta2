@@ -10,6 +10,7 @@ import CoreBluetooth
 
 struct ContentView: View {
     @ObservedObject var bleManager = BLEManager()
+    @ObservedObject var timeViewModel = TimeViewModel()
     @State var doScan = false
     @State private var newSubject = ""
     @State private var showSubjectModal = false
@@ -28,14 +29,14 @@ struct ContentView: View {
             Spacer()
             VStack {
                 HStack {
-                    Text(bleManager.dateStr)
+                    Text(timeViewModel.dateStr)
                         .font(.title)
                         .fontWeight(.bold)
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                 }
                 HStack {
-                    Text(String(format: "0x%llX • %i", bleManager.seconds, bleManager.seconds))
+                    Text(String(format: "0x%llX • %i", timeViewModel.seconds, timeViewModel.seconds))
                         .fontWeight(.light)
                 }
             }.padding()
